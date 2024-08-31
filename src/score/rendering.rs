@@ -27,9 +27,33 @@ impl Viewport {
                 return None;
             }
 
-            pitch = pitch + Interval::HALFSTEP;
+            pitch += Interval::HALFSTEP;
             Some(pitch)
         })
+    }
+
+    /// Zooms in or out by factor. Pivot defines where to zoom.
+    pub fn zoom_by_factor(&mut self, factor: Vec2, pivot: (Time, Pitch)) {
+        let (time_pivot, pitch_pivot) = pivot;
+
+        self.time_start = time_pivot - (time_pivot - self.time_start) * factor.x;
+        self.time_end = time_pivot + (self.time_end - time_pivot) * factor.x;
+
+        self.pitch_start = pitch_pivot - (pitch_pivot - self.pitch_start) * factor.y;
+        self.pitch_end = pitch_pivot + (self.pitch_end - pitch_pivot) * factor.y;
+    }
+
+    /// Zooms in or out by a number of clicks.
+    /// You likely want to scale the clicks by some factor.
+    /// Pivot defines where to zoom to/out of.
+    pub fn zoom_by_clicks(&mut self, clicks: Vec2, pivot: (Time, Pitch)) {
+        self.zoom_by_factor(
+            Vec2 {
+                x: 2f32.powf(clicks.x),
+                y: 2f32.powf(clicks.y),
+            },
+            pivot,
+        );
     }
 }
 
@@ -90,14 +114,20 @@ impl<'a> MidiRoll<'a> {
     pub fn width_to_beats(&self, width: f32) -> Duration {
         Duration::from_beats_f32(width / self.beat_width())
     }
-    pub fn height_to_halfsteps(&self, height: f32) -> Duration {
-        Duration::from_beats_f32(height / self.halfstep_height())
+    pub fn height_to_halfsteps(&self, height: f32) -> Interval {
+        Interval::HALFSTEP * height / self.halfstep_height()
     }
     pub fn time_to_x(&self, time: Time) -> f32 {
         self.rect.x + (time - self.viewport.time_start).beats() * self.beat_width()
     }
     pub fn pitch_to_y(&self, pitch: Pitch) -> f32 {
         self.rect.y + (self.viewport.pitch_end - pitch).halfsteps() * self.halfstep_height()
+    }
+    pub fn x_to_time(&self, x: f32) -> Time {
+        self.viewport.time_start + Duration::from_beats_f32((x - self.rect.x) / self.beat_width())
+    }
+    pub fn y_to_pitch(&self, y: f32) -> Pitch {
+        self.viewport.pitch_end - self.height_to_halfsteps(y)
     }
 
     // Grid drawing

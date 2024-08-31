@@ -1,6 +1,5 @@
 use egui::{Align2, Color32, FontId};
-use music_data::note::harmony::Pitch;
-use music_data::score::rendering::{MidiRoll, Rect, Viewport};
+use music_data::score::rendering::{MidiRoll, Rect, Vec2, Viewport};
 use music_data::score::Score;
 
 #[derive(Debug, Clone, Copy)]
@@ -18,7 +17,7 @@ impl<const N: usize> Gradient<N> {
     }
 }
 
-fn show_score(ui: &mut egui::Ui, score: &mut Score, view: &mut Viewport) {
+fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut Viewport) {
     let gradient = Gradient::new([
         egui::Color32::BLUE,
         egui::Color32::GREEN,
@@ -27,14 +26,14 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, view: &mut Viewport) {
     ]);
 
     let (rect, res) = ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
-    let midi_roll = MidiRoll::new(
+    let mut midi_roll = MidiRoll::new(
         Rect {
             x: rect.left(),
             y: rect.top(),
             width: rect.width(),
             height: rect.height(),
         },
-        *view,
+        *viewport,
         score,
     );
 
@@ -44,39 +43,42 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, view: &mut Viewport) {
     let painter = ui.painter_at(rect);
 
     if res.hovered() {
-        let factor = 2.0f32.powf(ui.input(|i| -i.smooth_scroll_delta.y / 500.0));
-        if factor != 1.0 {
-            let halfstep_height = rect.height() / (view.pitch_end - view.pitch_start).halfsteps();
-
-            let pivot = Pitch(
-                ui.input(|i| i.pointer.hover_pos().unwrap_or_default().y - rect.top())
-                    / halfstep_height,
-            );
-            let above_pivot = view.pitch_end - pivot;
-            let below_pivot = view.pitch_start - pivot;
-
-            view.pitch_start = pivot + below_pivot * factor;
-            view.pitch_end = pivot + above_pivot * factor;
-        }
+        let (zoomed, cursor_pos) = ui.input(|i| (i.zoom_delta(), i.pointer.hover_pos().unwrap()));
+        viewport.zoom_by_factor(
+            Vec2 {
+                x: zoomed,
+                y: zoomed,
+            },
+            (
+                midi_roll.x_to_time(cursor_pos.x),
+                midi_roll.y_to_pitch(cursor_pos.y),
+            ),
+        );
+        midi_roll.viewport = *viewport;
     }
 
     if res.dragged() {
-        let delta_time = -midi_roll.width_to_beats(res.drag_delta().x);
-        view.time_start += delta_time;
-        view.time_end += delta_time;
+        let delta_time =
+            midi_roll.width_to_beats(res.drag_delta().x + ui.input(|i| i.smooth_scroll_delta.x));
+        let delta_pitch = midi_roll
+            .height_to_halfsteps(res.drag_delta().y + ui.input(|i| i.smooth_scroll_delta.y));
+        viewport.time_start -= delta_time;
+        viewport.time_end -= delta_time;
+        viewport.pitch_start += delta_pitch;
+        viewport.pitch_end += delta_pitch;
     }
 
     for track in score.tracks.iter() {
         let start = match track
             .notes
-            .binary_search_by_key(&view.time_start, |note| note.time + note.duration)
+            .binary_search_by_key(&viewport.time_start, |note| note.time + note.duration)
         {
             Ok(i) => i,
             Err(i) => i,
         };
         let end = match track
             .notes
-            .binary_search_by_key(&view.time_end, |note| note.time)
+            .binary_search_by_key(&viewport.time_end, |note| note.time)
         {
             Ok(i) => i,
             Err(i) => i,
