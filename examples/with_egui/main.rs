@@ -18,6 +18,24 @@ impl<const N: usize> Gradient<N> {
     }
 }
 
+fn boomwhacker_color(chroma: Chroma) -> Color32 {
+    fn rgb(r: u32, g: u32, b: u32) -> Color32 { Color32::from_rgb(r as u8, g as u8, b as u8) }
+    match chroma {
+        Chroma::A => rgb(78, 91, 185),                  // Blue violet
+        Chroma::ASharp => rgb(102, 53, 120),            // Violet
+        Chroma::B | Chroma::CFlat => rgb(232, 73, 157), // Hot pink
+        Chroma::C => rgb(255, 29, 30),                  // Red
+        Chroma::CSharp => rgb(182, 42, 46),             // Light pink
+        Chroma::D => rgb(241, 104, 88),                 // Red Orange
+        Chroma::DSharp => rgb(220, 113, 40),            // Orange
+        Chroma::E => rgb(238, 217, 112),                // Yellow
+        Chroma::F => rgb(111, 224, 98),                 // Green Yellow
+        Chroma::FSharp => rgb(54, 138, 79),             // Green
+        Chroma::G => rgb(58, 131, 145),                 // Dark Green
+        Chroma::GSharp => rgb(42, 71, 209),             // Blue
+    }
+}
+
 fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewport) {
     let gradient = Gradient::new([
         egui::Color32::BLUE,
@@ -43,7 +61,12 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
     let painter = ui.painter_at(rect);
 
     if res.hovered() {
-        let (zoomed, cursor_pos) = ui.input(|i| (i.zoom_delta(), i.pointer.hover_pos().unwrap()));
+        let (zoomed, cursor_pos) = ui.input(|i| {
+            (
+                i.zoom_delta(),
+                i.pointer.hover_pos().unwrap_or(rect.center()),
+            )
+        });
         viewport.zoom_by_factor(
             Vec2 {
                 x: zoomed,
@@ -98,7 +121,10 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
                     .unwrap_or(false)
             });
 
-            painter.rect_filled(note_rect, 0.0, gradient.sample(note.velocity.to_f32()));
+            let pitch_color = boomwhacker_color(note.pitch.chroma());
+            let velocity_color = gradient.sample(note.velocity.to_f32());
+
+            painter.rect(note_rect, 0.0, pitch_color, (1.0, velocity_color));
             if hovered {
                 painter.text(
                     note_rect.left_top(),
