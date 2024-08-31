@@ -45,3 +45,9 @@ impl std::ops::Sub<Interval> for Pitch {
     type Output = Pitch;
     fn sub(self, rhs: Interval) -> Self::Output { Pitch(self.0 - rhs.0) }
 }
+impl std::ops::AddAssign<Interval> for Pitch {
+    fn add_assign(&mut self, rhs: Interval) { self.0 += rhs.0 }
+}
+impl std::ops::SubAssign<Interval> for Pitch {
+    fn sub_assign(&mut self, rhs: Interval) { self.0 -= rhs.0 }
+}

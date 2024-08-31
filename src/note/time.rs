@@ -120,6 +120,14 @@ impl std::ops::Div<i64> for Duration {
     type Output = Duration;
     fn div(self, rhs: i64) -> Self::Output { Duration(self.0 / rhs) }
 }
+impl std::ops::Mul<f32> for Duration {
+    type Output = Duration;
+    fn mul(self, rhs: f32) -> Self::Output { Duration((self.0 as f64 * rhs as f64) as i64) }
+}
+impl std::ops::Div<f32> for Duration {
+    type Output = Duration;
+    fn div(self, rhs: f32) -> Self::Output { Duration((self.0 as f64 / rhs as f64) as i64) }
+}
 
 // Time math ops
 impl std::ops::Add<Duration> for Time {
