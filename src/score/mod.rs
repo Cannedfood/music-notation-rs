@@ -12,19 +12,19 @@ use crate::note::Note;
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Score {
-    pub tracks:    Vec<Track>,
+    pub tracks:    Vec<Part>,
     pub tempo_map: Vec<(Time, Tempo)>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Track {
+pub struct Part {
     pub description: String,
     pub notes: Vec<Note>,
     pub time_signature: Vec<(Time, TimeSignature)>,
     pub key_signature: Vec<(Time, KeySignature)>,
 }
-impl Track {
+impl Part {
     pub fn bars(&self) -> impl Iterator<Item = (Time, TimeSignature)> + '_ {
         self.notes
             .iter()
@@ -72,7 +72,7 @@ impl Score {
         let mut result = Score::default();
 
         for track in tracks {
-            let mut track_data = Track::default();
+            let mut track_data = Part::default();
             let mut time = Time::ZERO;
             let (mut time_numerator, mut time_denomintr) = match header.timing {
                 // Default 120 BPM until we get a tempo event
