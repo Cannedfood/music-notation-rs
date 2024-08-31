@@ -17,4 +17,3 @@ egui = "0.28.1"
 
 [features]
 default = ["midly", "serde"]
-

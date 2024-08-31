@@ -1,9 +1,23 @@
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Interval(pub f32);
+impl Eq for Interval {}
+#[allow(clippy::non_canonical_partial_ord_impl)]
+impl PartialOrd for Interval {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+impl Ord for Interval {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
+    }
+}
 
 #[rustfmt::skip]
 impl Interval {
+    pub const ZERO:               Interval = Interval(0.0);
+
     pub const HALFSTEP:           Interval = Interval(1.0);
     pub const WHOLESTEP:          Interval = Interval(2.0);
 
