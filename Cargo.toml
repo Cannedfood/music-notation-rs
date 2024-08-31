@@ -1,8 +1,8 @@
 [package]
-name = "music_data"
+name = "music-notation"
 version = "0.1.0"
 edition = "2021"
-description = "A library for manipulating note data. Eventually, this is meant to be the basis for a music composition program."
+description = "A library for music theory and notation. Eventually, this is meant to be the basis for a music composition program."
 license = "MIT"
 
 [dependencies]

@@ -4,14 +4,14 @@ use articulation::Fraction;
 
 pub mod articulation;
 pub mod harmony;
-pub mod time;
+pub mod rhythm;
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Note {
     // Timing
-    pub time:     time::Time,
-    pub duration: time::Duration,
+    pub time:     rhythm::Time,
+    pub duration: rhythm::Duration,
 
     // Pitch
     pub pitch:    harmony::Pitch,
@@ -22,6 +22,6 @@ pub struct Note {
     pub string: Option<u8>,
     pub damping: Option<Fraction>,
     pub channel: Option<u8>,
-    pub aftertouch: BTreeMap<time::Time, articulation::Velocity>,
-    pub bend: BTreeMap<time::Time, f32>,
+    pub aftertouch: BTreeMap<rhythm::Time, articulation::Velocity>,
+    pub bend: BTreeMap<rhythm::Time, f32>,
 }

@@ -1,17 +1,16 @@
-use super::Score;
 use crate::note::harmony::{Interval, Pitch};
-use crate::note::time::{Duration, Time, TimeSignature};
+use crate::note::rhythm::{Duration, Time, TimeSignature};
 
 #[derive(Debug, Clone, Copy)]
-pub struct Viewport {
+pub struct MidiRollViewport {
     pub time_start:  Time,
     pub time_end:    Time,
     pub pitch_start: Pitch,
     pub pitch_end:   Pitch,
 }
-impl Default for Viewport {
+impl Default for MidiRollViewport {
     fn default() -> Self {
-        Viewport {
+        MidiRollViewport {
             time_start:  Time::ZERO,
             time_end:    Time::ZERO + Duration::from_beats_f32(4.0),
             pitch_start: Pitch::from_midi(0),
@@ -19,7 +18,7 @@ impl Default for Viewport {
         }
     }
 }
-impl Viewport {
+impl MidiRollViewport {
     pub fn list_pitches(&self) -> impl Iterator<Item = Pitch> + '_ {
         let mut pitch = self.pitch_start;
         std::iter::from_fn(move || {
@@ -90,19 +89,12 @@ pub struct TimeLine {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct MidiRoll<'a> {
+pub struct MidiRoll {
     pub rect:     Rect,
-    pub viewport: Viewport,
-    pub score:    &'a Score,
+    pub viewport: MidiRollViewport,
 }
-impl<'a> MidiRoll<'a> {
-    pub fn new(rect: Rect, viewport: Viewport, score: &'a Score) -> Self {
-        MidiRoll {
-            rect,
-            viewport,
-            score,
-        }
-    }
+impl MidiRoll {
+    pub fn new(rect: Rect, viewport: MidiRollViewport) -> Self { MidiRoll { rect, viewport } }
 
     // Grid methods
     pub fn beat_width(&self) -> f32 {

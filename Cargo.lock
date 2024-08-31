@@ -1747,7 +1747,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "music_data"
+name = "music-notation"
 version = "0.1.0"
 dependencies = [
  "eframe",

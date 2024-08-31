@@ -1,7 +1,7 @@
 use core::range::Range;
 
 use crate::note::harmony::Pitch;
-use crate::note::time::Time;
+use crate::note::rhythm::Time;
 use crate::note::Note;
 
 #[derive(Debug, Clone, Copy)]

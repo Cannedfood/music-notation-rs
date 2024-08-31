@@ -1,6 +1,7 @@
 use egui::{Align2, Color32, FontId};
-use music_data::score::rendering::{MidiRoll, Rect, Vec2, Viewport};
-use music_data::score::Score;
+use music_notation::note::harmony::Chroma;
+use music_notation::score::rendering::{MidiRoll, MidiRollViewport, Rect, Vec2};
+use music_notation::score::Score;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Gradient<const N: usize>([egui::Color32; N]);
@@ -17,7 +18,7 @@ impl<const N: usize> Gradient<N> {
     }
 }
 
-fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut Viewport) {
+fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewport) {
     let gradient = Gradient::new([
         egui::Color32::BLUE,
         egui::Color32::GREEN,
@@ -34,7 +35,6 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut Viewport) {
             height: rect.height(),
         },
         *viewport,
-        score,
     );
 
     ui.painter()
@@ -113,12 +113,12 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut Viewport) {
 }
 
 fn main() {
-    let score = music_data::score::Score::from_midi_data(include_bytes!(
+    let score = music_notation::score::Score::from_midi_data(include_bytes!(
         "../../Queen - Bohemian Rhapsody.mid"
     ))
     .unwrap();
 
-    let mut view = Viewport::default();
+    let mut view = MidiRollViewport::default();
 
     eframe::run_simple_native(
         "Fun",

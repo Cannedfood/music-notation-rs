@@ -6,7 +6,7 @@ use std::ops::Range;
 
 use crate::note::articulation::Velocity;
 use crate::note::harmony::{KeySignature, Pitch};
-use crate::note::time::{Duration, Tempo, Time, TimeSignature};
+use crate::note::rhythm::{Duration, Tempo, Time, TimeSignature};
 use crate::note::Note;
 
 #[derive(Debug, Clone, Default)]
