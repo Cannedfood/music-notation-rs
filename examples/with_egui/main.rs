@@ -40,12 +40,12 @@ fn boomwhacker_color(chroma: Chroma) -> Color32 {
 }
 
 fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewport) {
-    let gradient = Gradient::new([
-        egui::Color32::BLUE,
-        egui::Color32::GREEN,
-        egui::Color32::GOLD,
-        egui::Color32::RED,
-    ]);
+    // let gradient = Gradient::new([
+    //     egui::Color32::BLUE,
+    //     egui::Color32::GREEN,
+    //     egui::Color32::GOLD,
+    //     egui::Color32::RED,
+    // ]);
 
     let (rect, res) = ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
     let mut midi_roll = MidiRoll::new(
@@ -97,12 +97,13 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
     for (time, beat_nr) in TimeSignature::default().beats(Time::ZERO, midi_roll.viewport.time_range)
     {
         let x = midi_roll.time_to_x(time);
+        let brightness = midi_roll.beat_width().clamp(0.0, 255.0) as u8;
         let stroke: egui::Stroke = {
             if beat_nr == 0 {
-                (1.0, Color32::WHITE).into()
+                (1.0, Color32::from_gray(brightness)).into()
             }
             else {
-                (1.0, Color32::GRAY).into()
+                (1.0, Color32::from_gray(brightness / 3)).into()
             }
         };
 
@@ -146,9 +147,9 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
             });
 
             let pitch_color = boomwhacker_color(note.pitch.chroma());
-            let velocity_color = gradient.sample(note.velocity.to_f32());
+            // let velocity_color = gradient.sample(note.velocity.to_f32());
 
-            painter.rect(note_rect, 0.0, pitch_color, (1.0, velocity_color));
+            painter.rect_filled(note_rect, 0.0, pitch_color);
             if hovered {
                 let mut text_position = note_rect.left_center();
                 let mut outside = false;
