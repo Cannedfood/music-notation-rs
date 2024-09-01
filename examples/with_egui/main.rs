@@ -1,7 +1,7 @@
 #![feature(new_range_api)]
 
 use egui::{Align2, Color32, FontId};
-use music_notation::note::harmony::Chroma;
+use music_notation::note::harmony::{Chroma, Pitch};
 use music_notation::note::rhythm::{Time, TimeSignature};
 use music_notation::score::rendering::{MidiRoll, MidiRollViewport, Rect, Vec2};
 use music_notation::score::Score;
@@ -116,6 +116,26 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
         );
     }
 
+    // Draw pitch lines
+    for pitch in (0..255).step_by(12).map(Pitch::from_midi) {
+        let brightness = (midi_roll.halfstep_height() * 12.0).clamp(0.0, 255.0) as u8;
+        let stroke: egui::Stroke = if pitch.chroma() == Chroma::C && pitch.octave() == 4 {
+            (3.0, Color32::from_gray(brightness)).into()
+        }
+        else {
+            (1.0, Color32::from_gray(brightness / 3)).into()
+        };
+
+        let y = midi_roll.pitch_to_y(pitch.with_cents(-50.0));
+        painter.line_segment(
+            [
+                (midi_roll.rect.left(), y).into(),
+                (midi_roll.rect.right(), y).into(),
+            ],
+            stroke,
+        );
+    }
+
     for track in score.tracks.iter() {
         let start = match track
             .notes
@@ -158,6 +178,11 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
                     outside = true;
                 }
 
+                let luminance = {
+                    let [r, g, b, _] = pitch_color.to_normalized_gamma_f32();
+                    0.299 * r + 0.587 * g + 0.114 * b
+                };
+
                 painter.text(
                     text_position,
                     Align2::LEFT_CENTER,
@@ -167,8 +192,13 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
                         note.pitch,
                         note.velocity
                     ),
-                    FontId::monospace(note_rect.height()),
-                    Color32::WHITE,
+                    FontId::monospace(note_rect.height().min(32.0)),
+                    if luminance < 0.5 {
+                        Color32::WHITE
+                    }
+                    else {
+                        Color32::BLACK
+                    },
                 );
             }
         }

@@ -1,4 +1,4 @@
-use crate::note::harmony::{Chroma, Interval, Octave, Pitch};
+use crate::note::harmony::{Chroma, Interval, Pitch};
 use crate::note::Note;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -20,7 +20,7 @@ impl GuitarTuning {
     pub fn from_pitches(strings: Vec<Pitch>) -> GuitarTuning { GuitarTuning { strings, frets: 24 } }
 
     pub fn standard() -> GuitarTuning {
-        GuitarTuning::from_intervals(Pitch::from_chroma_octave(Chroma::E, Octave(4)), &[
+        GuitarTuning::from_intervals(Pitch::from_chroma_octave(Chroma::E, 4), &[
             Interval::FOURTH,
             Interval::FOURTH,
             Interval::FOURTH,

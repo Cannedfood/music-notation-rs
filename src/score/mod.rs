@@ -92,7 +92,7 @@ impl Score {
                     TrackEventKind::Midi { channel, message } => match message {
                         MidiMessage::NoteOn { key, vel } => track_data.notes.push(Note {
                             time,
-                            pitch: Pitch::from_midi(key.as_int()),
+                            pitch: Pitch::from_midi(key.as_int() as i32),
                             velocity: Velocity::from_midi(vel.as_int()),
                             duration: Duration::SIXTEENTH,
                             channel: Some(channel.as_int()),
@@ -100,7 +100,7 @@ impl Score {
                         }),
                         MidiMessage::NoteOff { key, vel: _ } => {
                             // Find the note by pitch and set the duration so it ends *now*
-                            let pitch = Pitch::from_midi(key.as_int());
+                            let pitch = Pitch::from_midi(key.as_int() as i32);
                             let note = track_data.notes.iter_mut().rev().find(|n| n.pitch == pitch);
                             if let Some(note) = note {
                                 note.duration = time - note.time;
