@@ -150,11 +150,23 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
 
             painter.rect(note_rect, 0.0, pitch_color, (1.0, velocity_color));
             if hovered {
+                let mut text_position = note_rect.left_center();
+                let mut outside = false;
+                if text_position.x < midi_roll.rect.left() {
+                    text_position.x = midi_roll.rect.left();
+                    outside = true;
+                }
+
                 painter.text(
-                    note_rect.left_top(),
-                    Align2::LEFT_TOP,
-                    format!("{}, {}", note.pitch, note.velocity),
-                    FontId::proportional(note_rect.height()),
+                    text_position,
+                    Align2::LEFT_CENTER,
+                    format!(
+                        "{}{}, {}",
+                        if outside { "< " } else { "" },
+                        note.pitch,
+                        note.velocity
+                    ),
+                    FontId::monospace(note_rect.height()),
                     Color32::WHITE,
                 );
             }
