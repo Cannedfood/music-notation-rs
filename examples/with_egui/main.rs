@@ -171,7 +171,9 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
 
             painter.rect_filled(note_rect, 0.0, pitch_color);
             if hovered {
-                let mut text_position = note_rect.left_center();
+                let content_rect = note_rect.shrink(3.0);
+
+                let mut text_position = content_rect.left_center();
                 let mut outside = false;
                 if text_position.x < midi_roll.rect.left() {
                     text_position.x = midi_roll.rect.left();
@@ -192,7 +194,7 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
                         note.pitch,
                         note.velocity
                     ),
-                    FontId::monospace((note_rect.height() - 4.0).clamp(8.0, 32.0)),
+                    FontId::monospace(content_rect.height().clamp(8.0, 32.0)),
                     if luminance < 0.5 {
                         Color32::WHITE
                     }
