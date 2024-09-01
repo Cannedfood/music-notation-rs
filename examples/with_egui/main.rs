@@ -179,7 +179,7 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
                 }
 
                 let luminance = {
-                    let [r, g, b, _] = pitch_color.to_normalized_gamma_f32();
+                    let [r, g, b, _] = egui::Rgba::from(pitch_color).to_array();
                     (0.299 * r * r + 0.587 * g * g + 0.114 * b * b).sqrt()
                 };
 
