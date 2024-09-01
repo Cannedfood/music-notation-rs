@@ -42,6 +42,7 @@ impl<'de> serde::Deserialize<'de> for Duration {
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Time(i64);
+pub type TimeRange = core::range::Range<Time>;
 impl Time {
     pub const ZERO: Time = Time(0);
 }
@@ -59,8 +60,6 @@ impl<'de> serde::Deserialize<'de> for Time {
     }
 }
 
-pub type TimeRange = core::range::Range<Time>;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TimeSignature {
@@ -76,6 +75,17 @@ impl TimeSignature {
         let num_bars = ((end - start) + Duration(self.bar_length().0 - 1)) / self.bar_length();
         let bar_length = self.bar_length();
         (0..num_bars).map(move |i| start + bar_length * i)
+    }
+
+    pub fn beats(self, start: Time, range: TimeRange) -> impl Iterator<Item = (Time, u32)> {
+        let note_length = self.subdivision_duration();
+
+        let total = range.end - start;
+        let num_beats = (total + Duration(note_length.0 - 1)) / note_length;
+        let first_visible_beat = (range.start.max(start) - start) / note_length;
+
+        (first_visible_beat..num_beats)
+            .map(move |i| (start + note_length * i, (i % self.numerator as i64) as u32))
     }
 }
 impl Default for TimeSignature {

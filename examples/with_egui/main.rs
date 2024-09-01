@@ -1,5 +1,8 @@
+#![feature(new_range_api)]
+
 use egui::{Align2, Color32, FontId};
 use music_notation::note::harmony::Chroma;
+use music_notation::note::rhythm::{Time, TimeSignature};
 use music_notation::score::rendering::{MidiRoll, MidiRollViewport, Rect, Vec2};
 use music_notation::score::Score;
 
@@ -85,23 +88,44 @@ fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewp
             midi_roll.width_to_beats(res.drag_delta().x + ui.input(|i| i.smooth_scroll_delta.x));
         let delta_pitch = midi_roll
             .height_to_halfsteps(res.drag_delta().y + ui.input(|i| i.smooth_scroll_delta.y));
-        viewport.time_start -= delta_time;
-        viewport.time_end -= delta_time;
-        viewport.pitch_start += delta_pitch;
-        viewport.pitch_end += delta_pitch;
+        viewport.time_range.start -= delta_time;
+        viewport.time_range.end -= delta_time;
+        viewport.pitch_range.start += delta_pitch;
+        viewport.pitch_range.end += delta_pitch;
+    }
+
+    for (time, beat_nr) in TimeSignature::default().beats(Time::ZERO, midi_roll.viewport.time_range)
+    {
+        let x = midi_roll.time_to_x(time);
+        let stroke: egui::Stroke = {
+            if beat_nr == 0 {
+                (1.0, Color32::WHITE).into()
+            }
+            else {
+                (1.0, Color32::GRAY).into()
+            }
+        };
+
+        painter.line_segment(
+            [
+                (x, midi_roll.rect.top()).into(),
+                (x, midi_roll.rect.bottom()).into(),
+            ],
+            stroke,
+        );
     }
 
     for track in score.tracks.iter() {
         let start = match track
             .notes
-            .binary_search_by_key(&viewport.time_start, |note| note.time + note.duration)
+            .binary_search_by_key(&viewport.time_range.start, |note| note.time + note.duration)
         {
             Ok(i) => i,
             Err(i) => i,
         };
         let end = match track
             .notes
-            .binary_search_by_key(&viewport.time_end, |note| note.time)
+            .binary_search_by_key(&viewport.time_range.end, |note| note.time)
         {
             Ok(i) => i,
             Err(i) => i,

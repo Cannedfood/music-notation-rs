@@ -1,28 +1,24 @@
-use crate::note::harmony::{Interval, Pitch};
-use crate::note::rhythm::{Duration, Time, TimeSignature};
+use crate::note::harmony::{Interval, Pitch, PitchRange};
+use crate::note::rhythm::{Duration, Time, TimeRange};
 
 #[derive(Debug, Clone, Copy)]
 pub struct MidiRollViewport {
-    pub time_start:  Time,
-    pub time_end:    Time,
-    pub pitch_start: Pitch,
-    pub pitch_end:   Pitch,
+    pub time_range:  TimeRange,
+    pub pitch_range: PitchRange,
 }
 impl Default for MidiRollViewport {
     fn default() -> Self {
         MidiRollViewport {
-            time_start:  Time::ZERO,
-            time_end:    Time::ZERO + Duration::from_beats_f32(4.0),
-            pitch_start: Pitch::from_midi(0),
-            pitch_end:   Pitch::from_midi(127),
+            time_range:  (Time::ZERO..Time::ZERO + Duration::WHOLE).into(),
+            pitch_range: (Pitch::from_midi(0)..Pitch::from_midi(127)).into(),
         }
     }
 }
 impl MidiRollViewport {
     pub fn list_pitches(&self) -> impl Iterator<Item = Pitch> + '_ {
-        let mut pitch = self.pitch_start;
+        let mut pitch = self.pitch_range.start;
         std::iter::from_fn(move || {
-            if pitch >= self.pitch_end {
+            if pitch >= self.pitch_range.end {
                 return None;
             }
 
@@ -35,11 +31,11 @@ impl MidiRollViewport {
     pub fn zoom_by_factor(&mut self, factor: Vec2, pivot: (Time, Pitch)) {
         let (time_pivot, pitch_pivot) = pivot;
 
-        self.time_start = time_pivot - (time_pivot - self.time_start) * factor.x;
-        self.time_end = time_pivot + (self.time_end - time_pivot) * factor.x;
+        self.time_range.start = time_pivot - (time_pivot - self.time_range.start) * factor.x;
+        self.time_range.end = time_pivot + (self.time_range.end - time_pivot) * factor.x;
 
-        self.pitch_start = pitch_pivot - (pitch_pivot - self.pitch_start) * factor.y;
-        self.pitch_end = pitch_pivot + (self.pitch_end - pitch_pivot) * factor.y;
+        self.pitch_range.start = pitch_pivot - (pitch_pivot - self.pitch_range.start) * factor.y;
+        self.pitch_range.end = pitch_pivot + (self.pitch_range.end - pitch_pivot) * factor.y;
     }
 
     /// Zooms in or out by a number of clicks.
@@ -98,10 +94,11 @@ impl MidiRoll {
 
     // Grid methods
     pub fn beat_width(&self) -> f32 {
-        self.rect.width / (self.viewport.time_end - self.viewport.time_start).beats()
+        self.rect.width / (self.viewport.time_range.end - self.viewport.time_range.start).beats()
     }
     pub fn halfstep_height(&self) -> f32 {
-        self.rect.height / (self.viewport.pitch_end - self.viewport.pitch_start).halfsteps()
+        self.rect.height
+            / (self.viewport.pitch_range.end - self.viewport.pitch_range.start).halfsteps()
     }
     pub fn width_to_beats(&self, width: f32) -> Duration {
         Duration::from_beats_f32(width / self.beat_width())
@@ -110,16 +107,17 @@ impl MidiRoll {
         Interval::HALFSTEP * height / self.halfstep_height()
     }
     pub fn time_to_x(&self, time: Time) -> f32 {
-        self.rect.x + (time - self.viewport.time_start).beats() * self.beat_width()
+        self.rect.x + (time - self.viewport.time_range.start).beats() * self.beat_width()
     }
     pub fn pitch_to_y(&self, pitch: Pitch) -> f32 {
-        self.rect.y + (self.viewport.pitch_end - pitch).halfsteps() * self.halfstep_height()
+        self.rect.y + (self.viewport.pitch_range.end - pitch).halfsteps() * self.halfstep_height()
     }
     pub fn x_to_time(&self, x: f32) -> Time {
-        self.viewport.time_start + Duration::from_beats_f32((x - self.rect.x) / self.beat_width())
+        self.viewport.time_range.start
+            + Duration::from_beats_f32((x - self.rect.x) / self.beat_width())
     }
     pub fn y_to_pitch(&self, y: f32) -> Pitch {
-        self.viewport.pitch_end - self.height_to_halfsteps(y)
+        self.viewport.pitch_range.end - self.height_to_halfsteps(y)
     }
 
     // Grid drawing
@@ -131,35 +129,6 @@ impl MidiRoll {
                 x_end: self.rect.x + self.rect.width,
                 y,
             }
-        })
-    }
-    pub fn time_lines(&self) -> Vec<TimeLine> { Vec::new() }
-
-    pub fn time_lines_for(
-        &self,
-        start: Time,
-        end: Time,
-        sig: TimeSignature,
-    ) -> impl Iterator<Item = TimeLine> + '_ {
-        let step = sig.subdivision_duration();
-        let mut time = start;
-        let mut counter = 0;
-        std::iter::from_fn(move || {
-            if time >= end {
-                return None;
-            }
-
-            let is_bar_line = counter % sig.numerator == 0;
-            let line = TimeLine {
-                x: self.time_to_x(time),
-                y_start: self.rect.y,
-                y_end: self.rect.y + self.rect.height,
-                is_bar_line,
-            };
-            counter += 1;
-            time += step;
-
-            Some(line)
         })
     }
 

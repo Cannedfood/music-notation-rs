@@ -9,7 +9,7 @@ pub struct Octave(pub i8);
 #[derive(Debug, Default, Clone, Copy, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pitch(pub f32);
-
+pub type PitchRange = core::range::Range<Pitch>;
 impl Pitch {
     pub fn from_midi(midi: u8) -> Self { Pitch(midi as f32) }
     pub fn to_midi(self) -> u8 { self.0 as u8 }
