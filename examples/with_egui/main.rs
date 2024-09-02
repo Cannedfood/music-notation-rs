@@ -3,7 +3,8 @@
 use egui::{Align2, Color32, FontId};
 use music_notation::note::harmony::{Chroma, Pitch};
 use music_notation::note::rhythm::{Time, TimeSignature};
-use music_notation::score::rendering::{MidiRoll, MidiRollViewport, Rect, Vec2};
+use music_notation::score::edit::ScoreEdit;
+use music_notation::score::rendering::{MidiRoll, Rect, Vec2};
 use music_notation::score::Score;
 
 #[derive(Debug, Clone, Copy)]
@@ -39,188 +40,197 @@ fn boomwhacker_color(chroma: Chroma) -> Color32 {
     }
 }
 
-fn show_score(ui: &mut egui::Ui, score: &mut Score, viewport: &mut MidiRollViewport) {
-    // let gradient = Gradient::new([
-    //     egui::Color32::BLUE,
-    //     egui::Color32::GREEN,
-    //     egui::Color32::GOLD,
-    //     egui::Color32::RED,
-    // ]);
+#[derive(Default, Debug, Clone)]
+pub struct ScoreEditor {
+    pub score: Score,
+    pub edit:  ScoreEdit,
+    pub view:  MidiRoll,
+}
+impl ScoreEditor {
+    fn new(score: Score) -> Self {
+        ScoreEditor {
+            score,
+            ..Default::default()
+        }
+    }
 
-    let (rect, res) = ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
-    let mut midi_roll = MidiRoll::new(
-        Rect {
+    fn show(&mut self, ui: &mut egui::Ui) {
+        let (rect, res) =
+            ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
+        self.view.rect = Rect {
             x: rect.left(),
             y: rect.top(),
             width: rect.width(),
             height: rect.height(),
-        },
-        *viewport,
-    );
+        };
 
-    ui.painter()
-        .rect(rect, 0.0, egui::Color32::BLACK, (1.0, egui::Color32::WHITE));
+        ui.painter()
+            .rect(rect, 0.0, egui::Color32::BLACK, (1.0, egui::Color32::WHITE));
 
-    let painter = ui.painter_at(rect);
+        let painter = ui.painter_at(rect);
 
-    if res.hovered() {
-        let (zoomed, cursor_pos) = ui.input(|i| {
-            (
-                i.zoom_delta(),
-                i.pointer.hover_pos().unwrap_or(rect.center()),
-            )
-        });
-        viewport.zoom_by_factor(
-            Vec2 {
-                x: zoomed,
-                y: zoomed,
-            },
-            (
-                midi_roll.x_to_time(cursor_pos.x),
-                midi_roll.y_to_pitch(cursor_pos.y),
-            ),
-        );
-        midi_roll.viewport = *viewport;
-    }
+        if res.hovered() {
+            let (zoomed, cursor_pos) = ui.input(|i| {
+                (
+                    i.zoom_delta(),
+                    i.pointer.hover_pos().unwrap_or(rect.center()),
+                )
+            });
+            self.view.viewport.zoom_by_factor(
+                Vec2 {
+                    x: zoomed,
+                    y: zoomed,
+                },
+                (
+                    self.view.x_to_time(cursor_pos.x),
+                    self.view.y_to_pitch(cursor_pos.y),
+                ),
+            );
+        }
 
-    if res.dragged() {
-        let delta_time =
-            midi_roll.width_to_beats(res.drag_delta().x + ui.input(|i| i.smooth_scroll_delta.x));
-        let delta_pitch = midi_roll
-            .height_to_halfsteps(res.drag_delta().y + ui.input(|i| i.smooth_scroll_delta.y));
-        viewport.time_range.start -= delta_time;
-        viewport.time_range.end -= delta_time;
-        viewport.pitch_range.start += delta_pitch;
-        viewport.pitch_range.end += delta_pitch;
-    }
+        if res.dragged() {
+            let delta_time = self
+                .view
+                .width_to_beats(res.drag_delta().x + ui.input(|i| i.smooth_scroll_delta.x));
+            let delta_pitch = self
+                .view
+                .height_to_halfsteps(res.drag_delta().y + ui.input(|i| i.smooth_scroll_delta.y));
+            self.view.viewport.time_range.start -= delta_time;
+            self.view.viewport.time_range.end -= delta_time;
+            self.view.viewport.pitch_range.start += delta_pitch;
+            self.view.viewport.pitch_range.end += delta_pitch;
+        }
 
-    for (time, beat_nr) in TimeSignature::default().beats(Time::ZERO, midi_roll.viewport.time_range)
-    {
-        let x = midi_roll.time_to_x(time);
-        let brightness = midi_roll.beat_width().clamp(0.0, 255.0) as u8;
-        let stroke: egui::Stroke = {
-            if beat_nr == 0 {
-                (1.0, Color32::from_gray(brightness)).into()
+        for (time, beat_nr) in
+            TimeSignature::default().beats(Time::ZERO, self.view.viewport.time_range)
+        {
+            let x = self.view.time_to_x(time);
+            let brightness = self.view.beat_width().clamp(0.0, 255.0) as u8;
+            let stroke: egui::Stroke = {
+                if beat_nr == 0 {
+                    (1.0, Color32::from_gray(brightness)).into()
+                }
+                else {
+                    (1.0, Color32::from_gray(brightness / 3)).into()
+                }
+            };
+
+            painter.line_segment(
+                [
+                    (x, self.view.rect.top()).into(),
+                    (x, self.view.rect.bottom()).into(),
+                ],
+                stroke,
+            );
+        }
+
+        // Draw pitch lines
+        for pitch in (0..255).step_by(12).map(Pitch::from_midi) {
+            let brightness = (self.view.halfstep_height() * 12.0).clamp(0.0, 255.0) as u8;
+            let stroke: egui::Stroke = if pitch.chroma() == Chroma::C && pitch.octave() == 4 {
+                (3.0, Color32::from_gray(brightness)).into()
             }
             else {
                 (1.0, Color32::from_gray(brightness / 3)).into()
-            }
-        };
+            };
 
-        painter.line_segment(
-            [
-                (x, midi_roll.rect.top()).into(),
-                (x, midi_roll.rect.bottom()).into(),
-            ],
-            stroke,
-        );
-    }
-
-    // Draw pitch lines
-    for pitch in (0..255).step_by(12).map(Pitch::from_midi) {
-        let brightness = (midi_roll.halfstep_height() * 12.0).clamp(0.0, 255.0) as u8;
-        let stroke: egui::Stroke = if pitch.chroma() == Chroma::C && pitch.octave() == 4 {
-            (3.0, Color32::from_gray(brightness)).into()
-        }
-        else {
-            (1.0, Color32::from_gray(brightness / 3)).into()
-        };
-
-        let y = midi_roll.pitch_to_y(pitch.with_cents(-50.0));
-        painter.line_segment(
-            [
-                (midi_roll.rect.left(), y).into(),
-                (midi_roll.rect.right(), y).into(),
-            ],
-            stroke,
-        );
-    }
-
-    for track in score.tracks.iter() {
-        let start = match track
-            .notes
-            .binary_search_by_key(&viewport.time_range.start, |note| note.time + note.duration)
-        {
-            Ok(i) => i,
-            Err(i) => i,
-        };
-        let end = match track
-            .notes
-            .binary_search_by_key(&viewport.time_range.end, |note| note.time)
-        {
-            Ok(i) => i,
-            Err(i) => i,
-        };
-
-        for note in track.notes[start..end].iter() {
-            let note_rect = midi_roll.note_box(note.time, note.duration, note.pitch);
-            let note_rect = egui::Rect::from_min_size(
-                (note_rect.x, note_rect.y).into(),
-                (note_rect.width, note_rect.height).into(),
+            let y = self.view.pitch_to_y(pitch.with_cents(-50.0));
+            painter.line_segment(
+                [
+                    (self.view.rect.left(), y).into(),
+                    (self.view.rect.right(), y).into(),
+                ],
+                stroke,
             );
+        }
 
-            let hovered = ui.input(|i| {
-                i.pointer
-                    .hover_pos()
-                    .map(|p| note_rect.contains(p))
-                    .unwrap_or(false)
-            });
+        for track in self.score.tracks.iter() {
+            let start = match track
+                .notes
+                .binary_search_by_key(&self.view.viewport.time_range.start, |note| {
+                    note.time + note.duration
+                }) {
+                Ok(i) => i,
+                Err(i) => i,
+            };
+            let end = match track
+                .notes
+                .binary_search_by_key(&self.view.viewport.time_range.end, |note| note.time)
+            {
+                Ok(i) => i,
+                Err(i) => i,
+            };
 
-            let pitch_color = boomwhacker_color(note.pitch.chroma());
-            // let velocity_color = gradient.sample(note.velocity.to_f32());
-
-            painter.rect_filled(note_rect, 0.0, pitch_color);
-            if hovered {
-                let content_rect = note_rect.shrink(3.0);
-
-                let mut text_position = content_rect.left_center();
-                let mut outside = false;
-                if text_position.x < midi_roll.rect.left() {
-                    text_position.x = midi_roll.rect.left();
-                    outside = true;
-                }
-
-                let luminance = {
-                    let [r, g, b, _] = egui::Rgba::from(pitch_color).to_array();
-                    (0.299 * r * r + 0.587 * g * g + 0.114 * b * b).sqrt()
-                };
-
-                painter.text(
-                    text_position,
-                    Align2::LEFT_CENTER,
-                    format!(
-                        "{}{}, {}",
-                        if outside { "< " } else { "" },
-                        note.pitch,
-                        note.velocity
-                    ),
-                    FontId::monospace(content_rect.height().clamp(8.0, 32.0)),
-                    if luminance < 0.5 {
-                        Color32::WHITE
-                    }
-                    else {
-                        Color32::BLACK
-                    },
+            for note in track.notes[start..end].iter() {
+                let note_rect = self.view.note_box(note.time, note.duration, note.pitch);
+                let note_rect = egui::Rect::from_min_size(
+                    (note_rect.x, note_rect.y).into(),
+                    (note_rect.width, note_rect.height).into(),
                 );
+
+                let hovered = ui.input(|i| {
+                    i.pointer
+                        .hover_pos()
+                        .map(|p| note_rect.contains(p))
+                        .unwrap_or(false)
+                });
+
+                let pitch_color = boomwhacker_color(note.pitch.chroma());
+                // let velocity_color = gradient.sample(note.velocity.to_f32());
+
+                painter.rect_filled(note_rect, 0.0, pitch_color);
+                if hovered {
+                    let content_rect = note_rect.shrink(3.0);
+
+                    let mut text_position = content_rect.left_center();
+                    let mut outside = false;
+                    if text_position.x < self.view.rect.left() {
+                        text_position.x = self.view.rect.left();
+                        outside = true;
+                    }
+
+                    let luminance = {
+                        let [r, g, b, _] = egui::Rgba::from(pitch_color).to_array();
+                        (0.299 * r * r + 0.587 * g * g + 0.114 * b * b).sqrt()
+                    };
+
+                    painter.text(
+                        text_position,
+                        Align2::LEFT_CENTER,
+                        format!(
+                            "{}{}, {}",
+                            if outside { "< " } else { "" },
+                            note.pitch,
+                            note.velocity
+                        ),
+                        FontId::monospace(content_rect.height().clamp(8.0, 32.0)),
+                        if luminance < 0.5 {
+                            Color32::WHITE
+                        }
+                        else {
+                            Color32::BLACK
+                        },
+                    );
+                }
             }
         }
     }
 }
 
 fn main() {
-    let score = music_notation::score::Score::from_midi_data(include_bytes!(
-        "../../Queen - Bohemian Rhapsody.mid"
-    ))
-    .unwrap();
-
-    let mut view = MidiRollViewport::default();
+    let mut score_editor = ScoreEditor::new(
+        music_notation::score::Score::from_midi_data(include_bytes!(
+            "../../Queen - Bohemian Rhapsody.mid"
+        ))
+        .unwrap(),
+    );
 
     eframe::run_simple_native(
         "Fun",
         eframe::NativeOptions::default(),
         move |cx, _frame| {
             egui::CentralPanel::default().show(cx, |ui| {
-                show_score(ui, &mut score.clone(), &mut view);
+                score_editor.show(ui);
             });
         },
     )

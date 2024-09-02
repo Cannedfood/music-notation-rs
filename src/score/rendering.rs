@@ -52,7 +52,7 @@ impl MidiRollViewport {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,
@@ -84,14 +84,12 @@ pub struct TimeLine {
     pub is_bar_line: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct MidiRoll {
     pub rect:     Rect,
     pub viewport: MidiRollViewport,
 }
 impl MidiRoll {
-    pub fn new(rect: Rect, viewport: MidiRollViewport) -> Self { MidiRoll { rect, viewport } }
-
     // Grid methods
     pub fn beat_width(&self) -> f32 {
         self.rect.width / (self.viewport.time_range.end - self.viewport.time_range.start).beats()

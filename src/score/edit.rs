@@ -21,3 +21,8 @@ pub enum Commands {
     MoveTime(i32),
     MovePitch(i32),
 }
+
+#[derive(Default, Debug, Clone)]
+pub struct ScoreEdit {
+    pub cursors: Vec<Cursor>,
+}
