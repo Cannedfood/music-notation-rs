@@ -11,10 +11,7 @@ pub struct Cursor {
     pub pitch_range: Range<Pitch>,
 }
 
-pub struct EditState {
-    pub cursors: Vec<Cursor>,
-}
-
+#[derive(Debug, Clone)]
 pub enum Commands {
     Insert(Note),
     Delete,
@@ -23,6 +20,6 @@ pub enum Commands {
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct ScoreEdit {
+pub struct EditState {
     pub cursors: Vec<Cursor>,
 }
