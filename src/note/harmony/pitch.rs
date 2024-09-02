@@ -13,10 +13,7 @@ impl Pitch {
     pub fn to_midi(self) -> i32 { self.0 as i32 }
 
     pub fn from_chroma_octave(chroma: impl Into<Chroma>, octave: i32) -> Self {
-        let chroma = chroma.into();
-
-        let chroma = chroma.to_midi_chroma() as i32;
-        let octave = octave;
+        let chroma = chroma.into().to_midi_chroma() as i32;
         Pitch::from_midi(chroma + octave * 12)
     }
     pub fn chroma(&self) -> Chroma {
