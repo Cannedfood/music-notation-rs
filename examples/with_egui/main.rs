@@ -1,11 +1,11 @@
 #![feature(new_range_api)]
 
 use egui::{Align2, Color32, FontId};
-use music_notation::note::harmony::{Chroma, Pitch};
+use music_notation::note::harmony::{Chroma, Interval, Pitch};
 use music_notation::note::rhythm::{Time, TimeSignature};
 use music_notation::note::Note;
-use music_notation::score::edit::EditState;
-use music_notation::score::rendering::{MidiRoll, Rect, Vec2};
+use music_notation::score::edit::{Cursor, EditState};
+use music_notation::score::rendering::{MidiRoll, MidiRollViewport, Rect, Vec2};
 use music_notation::score::Score;
 
 #[derive(Debug, Clone, Copy)]
@@ -76,10 +76,7 @@ impl ScoreEditor {
                 )
             });
             self.view.viewport.zoom_by_factor(
-                Vec2 {
-                    x: zoomed,
-                    y: zoomed,
-                },
+                Vec2 { x: zoomed, y: 1.0 },
                 (
                     self.view.x_to_time(cursor_pos.x),
                     self.view.y_to_pitch(cursor_pos.y),
@@ -110,27 +107,58 @@ impl ScoreEditor {
         self.paint_note_lines(&painter);
 
         for track in self.score.tracks.iter() {
-            for note in self.visible_note_range_in(track) {
-                self.paint_note(note, ui, &painter);
+            for note in Self::visible_note_range_in(&self.view.viewport, track) {
+                let rect = self.paint_note(note, ui, &painter);
+                if res.clicked()
+                    && res
+                        .interact_pointer_pos()
+                        .map(|p| rect.contains(p))
+                        .unwrap_or(false)
+                {
+                    if !ui.input(|i| i.modifiers.ctrl) {
+                        self.edit.cursors.clear();
+                    }
+                    self.edit.cursors.push(Cursor {
+                        track: 0,
+                        time_range: (note.time..(note.time + note.duration)).into(),
+                        pitch_range: (note.pitch..note.pitch).into(),
+                    });
+                }
             }
+        }
+
+        for cursor in self.edit.cursors.iter() {
+            let cursor_rect = egui::Rect::from_min_max(
+                (
+                    self.view.time_to_x(cursor.time_range.start),
+                    self.view.pitch_to_y(cursor.pitch_range.end),
+                )
+                    .into(),
+                (
+                    self.view.time_to_x(cursor.time_range.end),
+                    self.view
+                        .pitch_to_y(cursor.pitch_range.start - Interval::HALFSTEP),
+                )
+                    .into(),
+            );
+            painter.rect_stroke(cursor_rect, 0.0, egui::Stroke::new(1.0, Color32::WHITE));
         }
     }
 
     fn visible_note_range_in<'a>(
-        &'a self,
+        viewport: &MidiRollViewport,
         track: &'a music_notation::score::Part,
     ) -> impl Iterator<Item = &'a Note> + 'a {
         let start = match track
             .notes
-            .binary_search_by_key(&self.view.viewport.time_range.start, |note| {
-                note.time + note.duration
-            }) {
+            .binary_search_by_key(&viewport.time_range.start, |note| note.time + note.duration)
+        {
             Ok(i) => i,
             Err(i) => i,
         };
         let end = match track
             .notes
-            .binary_search_by_key(&self.view.viewport.time_range.end, |note| note.time)
+            .binary_search_by_key(&viewport.time_range.end, |note| note.time)
         {
             Ok(i) => i,
             Err(i) => i,
@@ -190,7 +218,7 @@ impl ScoreEditor {
         note: &music_notation::note::Note,
         ui: &mut egui::Ui,
         painter: &egui::Painter,
-    ) {
+    ) -> egui::Rect {
         let note_rect = self.view.note_box(note.time, note.duration, note.pitch);
         let note_rect = egui::Rect::from_min_size(
             (note_rect.x, note_rect.y).into(),
@@ -241,6 +269,8 @@ impl ScoreEditor {
                 },
             );
         }
+
+        note_rect
     }
 }
 
