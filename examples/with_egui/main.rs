@@ -106,15 +106,18 @@ impl ScoreEditor {
         self.paint_beat_lines(&painter);
         self.paint_note_lines(&painter);
 
+        let mut any_note_hovered = false;
+
         for track in self.score.tracks.iter() {
             for note in Self::visible_note_range_in(&self.view.viewport, track) {
                 let rect = self.paint_note(note, ui, &painter);
-                if res.clicked()
-                    && res
-                        .interact_pointer_pos()
-                        .map(|p| rect.contains(p))
-                        .unwrap_or(false)
-                {
+                let note_hovered = res
+                    .interact_pointer_pos()
+                    .map(|p| rect.contains(p))
+                    .unwrap_or(false);
+                any_note_hovered |= note_hovered;
+
+                if res.clicked() && note_hovered {
                     if !ui.input(|i| i.modifiers.ctrl) {
                         self.edit.cursors.clear();
                     }
@@ -125,6 +128,10 @@ impl ScoreEditor {
                     });
                 }
             }
+        }
+
+        if !any_note_hovered {
+            let position = TimeSignature::default();
         }
 
         for cursor in self.edit.cursors.iter() {
@@ -168,9 +175,13 @@ impl ScoreEditor {
     }
 
     fn paint_beat_lines(&self, painter: &egui::Painter) {
-        for (time, beat_nr) in
-            TimeSignature::default().beats(Time::ZERO, self.view.viewport.time_range)
+        let time_sig = TimeSignature::default();
+        for (i, time) in time_sig
+            .grid(Time::ZERO)
+            .iter_in_range(self.view.viewport.time_range)
         {
+            let beat_nr = i % time_sig.numerator as i64;
+
             let x = self.view.time_to_x(time);
             let brightness = self.view.beat_width().clamp(0.0, 255.0) as u8;
             let stroke: egui::Stroke = {

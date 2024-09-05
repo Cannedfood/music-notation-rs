@@ -2,24 +2,20 @@ use super::{Duration, Time, TimeRange};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TimeGrid {
-    pub range: TimeRange,
+    pub start: Time,
     pub step:  Duration,
 }
 impl TimeGrid {
-    pub fn new(range: TimeRange, step: Duration) -> Self { TimeGrid { range, step } }
-    pub fn iter(&self) -> impl Iterator<Item = Time> {
-        let start = self.range.start;
-        let step = self.step;
-        let n = (self.range.end - self.range.start).div_and_ceil(self.step);
-        (0..n).map(move |i| start + step * i)
+    pub fn new(start: Time, step: Duration) -> Self { TimeGrid { start, step } }
+    pub fn iter_in_range(self, range: TimeRange) -> impl Iterator<Item = (i64, Time)> {
+        let TimeGrid { start, step } = self;
+        let start_idx = (range.start - self.start) / step;
+        let end_idx = (range.end - self.start) / step;
+        (start_idx..end_idx).map(move |i| (i, start + step * i))
     }
     pub fn closest(&self, time: Time) -> Option<Time> {
-        if time < self.range.start || time >= self.range.end {
-            return None;
-        }
-
-        let i = (time - self.range.start) / self.step;
-        Some(self.range.start + self.step * i)
+        let i = (time - self.start) / self.step;
+        Some(self.start + self.step * i)
     }
 }
 
@@ -29,7 +25,6 @@ pub struct TimeSignature {
     pub numerator:   u8,
     pub subdivision: u8,
 }
-
 impl TimeSignature {
     pub fn subdivision_duration(&self) -> Duration {
         Duration(Duration::BEAT / self.subdivision as i64)
@@ -50,6 +45,10 @@ impl TimeSignature {
 
         (first_visible_beat..num_beats)
             .map(move |i| (start + note_length * i, (i % self.numerator as i64) as u32))
+    }
+
+    pub fn grid(self, start_at: Time) -> TimeGrid {
+        TimeGrid::new(start_at, self.subdivision_duration())
     }
 }
 
