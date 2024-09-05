@@ -67,7 +67,6 @@ impl ScoreEditor {
         };
 
         // Handle events
-
         if res.hovered() {
             let (zoomed, cursor_pos) = ui.input(|i| {
                 (
@@ -97,6 +96,13 @@ impl ScoreEditor {
             self.view.viewport.pitch_range.end += delta_pitch;
         }
 
+        let pointer_pos_raw = ui.input(|i| i.pointer.hover_pos());
+        let pointer_pos = ui.input(|i| {
+            i.pointer
+                .hover_pos()
+                .map(|p| (self.view.x_to_time(p.x), self.view.y_to_pitch(p.y)))
+        });
+
         // Paint background / border
         ui.painter()
             .rect(rect, 0.0, egui::Color32::BLACK, (1.0, egui::Color32::WHITE));
@@ -111,10 +117,7 @@ impl ScoreEditor {
         for track in self.score.tracks.iter() {
             for note in Self::visible_note_range_in(&self.view.viewport, track) {
                 let rect = self.paint_note(note, ui, &painter);
-                let note_hovered = res
-                    .interact_pointer_pos()
-                    .map(|p| rect.contains(p))
-                    .unwrap_or(false);
+                let note_hovered = pointer_pos_raw.map(|p| rect.contains(p)).unwrap_or(false);
                 any_note_hovered |= note_hovered;
 
                 if res.clicked() && note_hovered {
@@ -131,7 +134,21 @@ impl ScoreEditor {
         }
 
         if !any_note_hovered {
-            let position = TimeSignature::default();
+            if let Some(pointer_pos) = pointer_pos {
+                let time_sig = TimeSignature::default();
+                let position = time_sig.grid(Time::ZERO).closest(pointer_pos.0).unwrap();
+                let rect = self.view.note_box(
+                    position,
+                    time_sig.subdivision_duration(),
+                    pointer_pos.1.with_cents(0.0),
+                );
+                let rect = egui::Rect::from_min_size(
+                    (rect.x, rect.y).into(),
+                    (rect.width, rect.height).into(),
+                );
+
+                painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Color32::WHITE));
+            }
         }
 
         for cursor in self.edit.cursors.iter() {
