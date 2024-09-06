@@ -66,3 +66,11 @@ impl std::ops::Div<f32> for Duration {
     type Output = Duration;
     fn div(self, rhs: f32) -> Self::Output { Duration((self.0 as f64 / rhs as f64) as i64) }
 }
+impl std::ops::Mul<f64> for Duration {
+    type Output = Duration;
+    fn mul(self, rhs: f64) -> Self::Output { Duration((self.0 as f64 * rhs) as i64) }
+}
+impl std::ops::Div<f64> for Duration {
+    type Output = Duration;
+    fn div(self, rhs: f64) -> Self::Output { Duration((self.0 as f64 / rhs) as i64) }
+}
