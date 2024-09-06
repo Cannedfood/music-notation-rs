@@ -1,6 +1,7 @@
 #![feature(new_range_api)]
 
 use egui::{Align2, Color32, FontId};
+use music_notation::note::articulation::Velocity;
 use music_notation::note::harmony::{Chroma, Interval, Pitch};
 use music_notation::note::rhythm::{Time, TimeSignature};
 use music_notation::note::Note;
@@ -148,6 +149,22 @@ impl ScoreEditor {
                 );
 
                 painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Color32::WHITE));
+
+                if res.clicked() {
+                    let new_note = Note {
+                        time: position,
+                        duration: time_sig.subdivision_duration(),
+                        pitch: pointer_pos.1.with_cents(0.0),
+                        velocity: Velocity::from_f32(1.0),
+                        ..Default::default()
+                    };
+
+                    let notes = &mut self.score.tracks[0].notes;
+                    let insert_at = notes
+                        .binary_search_by_key(&position, |note| note.time)
+                        .unwrap_or_else(|i| i);
+                    notes.insert(insert_at, new_note);
+                }
             }
         }
 
