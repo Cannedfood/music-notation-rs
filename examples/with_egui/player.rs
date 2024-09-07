@@ -106,12 +106,6 @@ impl PlayerState {
 
     fn handle_commands(&mut self) {
         while let Ok(command) = self.commands.try_recv() {
-            println!("Received command: {}", match command {
-                PlayerCommands::SetBuffer(_) => "SetBuffer",
-                PlayerCommands::SetTime(_) => "SetTime",
-                PlayerCommands::Start => "Start",
-                PlayerCommands::Pause => "Pause",
-            });
             match command {
                 PlayerCommands::SetBuffer(notes) => {
                     self.active_notes.clear();
