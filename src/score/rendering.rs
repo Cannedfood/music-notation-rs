@@ -92,7 +92,8 @@ pub struct MidiRoll {
 impl MidiRoll {
     // Grid methods
     pub fn beat_width(&self) -> f32 {
-        self.rect.width / (self.viewport.time_range.end - self.viewport.time_range.start).beats()
+        self.rect.width
+            / (self.viewport.time_range.end - self.viewport.time_range.start).beats() as f32
     }
     pub fn halfstep_height(&self) -> f32 {
         self.rect.height
@@ -105,7 +106,7 @@ impl MidiRoll {
         Interval::HALFSTEP * height / self.halfstep_height()
     }
     pub fn time_to_x(&self, time: Time) -> f32 {
-        self.rect.x + (time - self.viewport.time_range.start).beats() * self.beat_width()
+        self.rect.x + (time - self.viewport.time_range.start).beats() as f32 * self.beat_width()
     }
     pub fn pitch_to_y(&self, pitch: Pitch) -> f32 {
         self.rect.y + (self.viewport.pitch_range.end - pitch).halfsteps() * self.halfstep_height()
@@ -134,7 +135,7 @@ impl MidiRoll {
         Rect {
             x: self.time_to_x(time),
             y: self.pitch_to_y(pitch),
-            width: self.beat_width() * duration.beats(),
+            width: self.beat_width() * duration.beats() as f32,
             height: self.halfstep_height(),
         }
     }

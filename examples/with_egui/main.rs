@@ -1,5 +1,7 @@
 #![feature(new_range_api)]
 
+mod player;
+
 use egui::{Align2, Color32, FontId};
 use music_notation::note::articulation::Velocity;
 use music_notation::note::harmony::{Chroma, Interval, Pitch};
@@ -8,6 +10,7 @@ use music_notation::note::Note;
 use music_notation::score::edit::{Cursor, EditState};
 use music_notation::score::rendering::{MidiRoll, MidiRollViewport, Rect, Vec2};
 use music_notation::score::Score;
+use player::{start_player, Player};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Gradient<const N: usize>([egui::Color32; N]);
@@ -45,8 +48,10 @@ fn boomwhacker_color(chroma: Chroma) -> Color32 {
 #[derive(Default, Debug, Clone)]
 pub struct ScoreEditor {
     pub score: Score,
-    pub edit:  EditState,
-    pub view:  MidiRoll,
+    pub edit: EditState,
+    pub view: MidiRoll,
+    pub play_line: Time,
+    pub playing: bool, // TODO: Move to player
 }
 impl ScoreEditor {
     fn new(score: Score) -> Self {
@@ -56,7 +61,7 @@ impl ScoreEditor {
         }
     }
 
-    fn show(&mut self, ui: &mut egui::Ui) {
+    fn show(&mut self, ui: &mut egui::Ui, player: &Player) {
         // Allocate rect
         let (rect, res) =
             ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
@@ -66,6 +71,44 @@ impl ScoreEditor {
             width: rect.width(),
             height: rect.height(),
         };
+
+        for event in player.events.try_iter() {
+            match event {
+                player::PlayerEvents::Time(time) => self.play_line = time,
+            }
+        }
+
+        if ui.input(|i| i.key_pressed(egui::Key::Space)) {
+            if self.playing {
+                player.commands.send(player::PlayerCommands::Pause).unwrap();
+                self.playing = false;
+            }
+            else {
+                let mut notes: Vec<_> = self
+                    .score
+                    .tracks
+                    .iter()
+                    .flat_map(|t| t.notes.iter())
+                    .cloned()
+                    .collect();
+                notes.sort_unstable_by_key(|n| n.time);
+
+                player
+                    .commands
+                    .send(player::PlayerCommands::SetBuffer(notes))
+                    .unwrap();
+                player
+                    .commands
+                    .send(player::PlayerCommands::SetTime(Time::ZERO))
+                    .unwrap();
+                player.commands.send(player::PlayerCommands::Start).unwrap();
+
+                self.playing = true;
+            }
+        }
+        if self.playing {
+            ui.ctx().request_repaint();
+        }
 
         // Handle events
         if res.hovered() {
@@ -112,6 +155,13 @@ impl ScoreEditor {
         let painter = ui.painter_at(rect);
         self.paint_beat_lines(&painter);
         self.paint_note_lines(&painter);
+        painter.line_segment(
+            [
+                (self.view.time_to_x(self.play_line), self.view.rect.top()).into(),
+                (self.view.time_to_x(self.play_line), self.view.rect.bottom()).into(),
+            ],
+            egui::Stroke::new(1.0, Color32::from_rgb(255, 0, 0)),
+        );
 
         let mut any_note_hovered = false;
 
@@ -327,12 +377,14 @@ fn main() {
         .unwrap(),
     );
 
+    let player = start_player();
+
     eframe::run_simple_native(
         "Fun",
         eframe::NativeOptions::default(),
         move |cx, _frame| {
             egui::CentralPanel::default().show(cx, |ui| {
-                score_editor.show(ui);
+                score_editor.show(ui, &player);
             });
         },
     )

@@ -26,7 +26,7 @@ impl Pitch {
     }
     pub fn with_cents(&self, cents: f32) -> Self { Pitch(self.0.floor() + cents / 100.0) }
 
-    pub fn to_hertz(self) -> f32 { 440.0 * 2.0_f32.powf((self.0 - 69.0) / 12.0) }
+    pub fn frequency_hertz(self) -> f32 { 440.0 * 2.0_f32.powf((self.0 - 69.0) / 12.0) }
     pub fn from_hertz(hertz: f32) -> Self { Pitch(69.0 + 12.0 * (hertz / 440.0).log2()) }
 }
 impl Display for Pitch {

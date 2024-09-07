@@ -14,8 +14,9 @@ impl Duration {
     pub const SIXTEENTH_TRIPLET: Duration = Duration(Duration::BEAT / 6);
     pub const THIRTY_SECOND: Duration = Duration(Duration::BEAT / 8);
 
-    pub fn beats(self) -> f32 { self.0 as f32 / Duration::BEAT as f32 }
-    pub fn from_beats_f32(beats: f32) -> Self { Duration((beats * Duration::BEAT as f32) as i64) }
+    pub fn beats(self) -> f64 { self.0 as f64 / Duration::BEAT as f64 }
+    pub fn from_beats_f64(beats: f64) -> Self { Duration((beats * Duration::BEAT as f64) as i64) }
+    pub fn from_beats_f32(beats: f32) -> Self { Duration::from_beats_f64(beats as f64) }
     pub fn div_and_ceil(self, other: Duration) -> i64 { (self.0 + other.0 - 1) / other.0 }
 }
 
