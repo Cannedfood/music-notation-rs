@@ -84,22 +84,23 @@ impl ScoreEditor {
                 self.playing = false;
             }
             else {
-                let mut notes: Vec<_> = self
-                    .score
-                    .tracks
-                    .iter()
-                    .flat_map(|t| t.notes.iter())
-                    .cloned()
-                    .collect();
-                notes.sort_unstable_by_key(|n| n.time);
-
                 player
                     .commands
-                    .send(player::PlayerCommands::SetBuffer(notes))
+                    .send(player::PlayerCommands::SetBuffer({
+                        let mut notes: Vec<_> = self
+                            .score
+                            .tracks
+                            .iter()
+                            .flat_map(|t| t.notes.iter())
+                            .cloned()
+                            .collect();
+                        notes.sort_unstable_by_key(|n| n.time);
+                        notes
+                    }))
                     .unwrap();
                 player
                     .commands
-                    .send(player::PlayerCommands::SetTime(Time::ZERO))
+                    .send(player::PlayerCommands::SetTime(self.play_line))
                     .unwrap();
                 player.commands.send(player::PlayerCommands::Start).unwrap();
 
@@ -146,6 +147,32 @@ impl ScoreEditor {
                 .hover_pos()
                 .map(|p| (self.view.x_to_time(p.x), self.view.y_to_pitch(p.y)))
         });
+
+        if res.clicked_by(egui::PointerButton::Secondary) {
+            if let Some(pointer_pos) = pointer_pos {
+                self.play_line = pointer_pos.0;
+                if self.playing {
+                    player
+                        .commands
+                        .send(player::PlayerCommands::SetTime(self.play_line))
+                        .unwrap();
+                    player
+                        .commands
+                        .send(player::PlayerCommands::SetBuffer({
+                            let mut notes: Vec<_> = self
+                                .score
+                                .tracks
+                                .iter()
+                                .flat_map(|t| t.notes.iter())
+                                .cloned()
+                                .collect();
+                            notes.sort_unstable_by_key(|n| n.time);
+                            notes
+                        }))
+                        .unwrap();
+                }
+            }
+        }
 
         // Paint background / border
         ui.painter()
@@ -372,7 +399,8 @@ impl ScoreEditor {
 fn main() {
     let mut score_editor = ScoreEditor::new(
         music_notation::score::Score::from_midi_data(include_bytes!(
-            "../../Queen - Bohemian Rhapsody.mid"
+            // "../../Queen - Bohemian Rhapsody.mid"
+            "../../Never-Gonna-Give-You-Up-3.mid"
         ))
         .unwrap(),
     );

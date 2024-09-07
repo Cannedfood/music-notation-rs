@@ -39,7 +39,7 @@ impl PlayerState {
                 commands: command_receive,
                 events: event_send,
                 current_time_in_beats: 0.0,
-                beats_to_seconds: 120.0 / 60.0,
+                beats_to_seconds: 60.0 / 120.0,
                 playing: false,
             },
             command_send,
@@ -90,6 +90,7 @@ impl PlayerState {
                 (note_start_beats * self.beats_to_seconds) * sample_rate,
                 (note_end_beats * self.beats_to_seconds) * sample_rate,
                 note.pitch.frequency_hertz() as f64,
+                note.velocity.to_f64(),
             );
 
             true
@@ -117,7 +118,7 @@ impl PlayerState {
                     self.upcoming_notes = notes.into_iter().collect()
                 }
                 PlayerCommands::SetTime(time) => {
-                    self.current_time_in_beats = (time - Time::ZERO).beats() * 60.0 / 120.0
+                    self.current_time_in_beats = (time - Time::ZERO).beats();
                 }
                 PlayerCommands::Start => self.playing = true,
                 PlayerCommands::Pause => self.playing = false,
@@ -133,24 +134,26 @@ fn generate_audio(
     start_samples: f64,
     end_samples: f64,
     freq_hz: f64,
+    velocity: f64,
 ) {
     let buffer_len = (buffer.len() / channels) as i64;
 
     let buf_start = (start_samples.ceil() as i64).clamp(0, buffer_len) as usize;
-    let buf_end = (end_samples.floor() as i64).clamp(0, buffer_len) as usize;
+    let buf_end = (end_samples.ceil() as i64).clamp(0, buffer_len) as usize;
     if buf_end <= buf_start {
         return;
     }
 
+    let attack_duration = sample_rate * (0.02 * velocity + 0.06 * (1.0 - velocity));
+    let decay_duration = sample_rate * 0.02;
+
     let step = 2.0 * std::f64::consts::PI * freq_hz / sample_rate;
     let mut w = (buf_start as f64 - start_samples) * step;
-    for chunk in buffer
-        .chunks_mut(channels)
-        .skip(buf_start)
-        .take(buf_end - buf_start)
-    {
-        let val = w.sin() as f32;
-        for sample in chunk.iter_mut() {
+    for i in buf_start..buf_end {
+        let decay = ((end_samples - i as f64) / decay_duration).clamp(0.0, 1.0);
+        let attack = ((i as f64 - start_samples) / attack_duration).clamp(0.0, 1.0);
+        let val = (velocity * attack * decay * w.sin()) as f32;
+        for sample in buffer[i * channels..(i + 1) * channels].iter_mut() {
             *sample += val;
         }
         w += step;
@@ -181,7 +184,7 @@ pub fn start_player() -> Player {
                 buf.fill(0.0);
                 state.update(buf, sample_rate, channels);
                 for sample in buf.iter_mut() {
-                    *sample = (*sample * 0.25).tanh();
+                    *sample = (*sample * 0.1).tanh();
                 }
             },
             |e| {
