@@ -296,7 +296,10 @@ impl ScoreEditor {
             let x = self.view.time_to_x(time);
             let brightness = self.view.beat_width().clamp(0.0, 255.0) as u8;
             let stroke: egui::Stroke = {
-                if beat_nr == 0 {
+                if time == Time::ZERO {
+                    (5.0, Color32::from_gray(brightness)).into()
+                }
+                else if beat_nr == 0 {
                     (1.0, Color32::from_gray(brightness)).into()
                 }
                 else {
