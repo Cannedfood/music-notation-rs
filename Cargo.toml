@@ -8,7 +8,7 @@ license = "MIT"
 [dependencies]
 midly = { version = "0.5.3", optional = true , features = ["std"], default-features = false }
 ron = "0.8.1"
-serde = { version = "1.0.209", features = ["derive"], optional = true }
+serde = { version = "1.0.210", features = ["derive"], optional = true }
 
 [dev-dependencies]
 eframe = "0.28.1"
