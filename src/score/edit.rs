@@ -5,7 +5,7 @@ use crate::note::rhythm::Time;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Cursor {
-    pub track: usize,
+    pub part: usize,
     pub time_range: Range<Time>,
     pub pitch_range: Range<Pitch>,
 }

@@ -12,7 +12,7 @@ use crate::note::Note;
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Score {
-    pub tracks:    Vec<Part>,
+    pub parts:     Vec<Part>,
     pub tempo_map: Vec<(Time, Tempo)>,
 }
 
@@ -182,7 +182,7 @@ impl Score {
                 }
             }
 
-            result.tracks.push(track_data);
+            result.parts.push(track_data);
         }
 
         Ok(result)

@@ -54,7 +54,7 @@ pub struct ScoreEditor {
     pub view: MidiRoll,
     pub play_line: Time,
     pub playing: bool, // TODO: Move to player
-    pub selected_tracks: HashSet<usize>,
+    pub selected_parts: HashSet<usize>,
 }
 impl ScoreEditor {
     fn new(score: Score) -> Self {
@@ -64,19 +64,19 @@ impl ScoreEditor {
         }
     }
 
-    fn show_track_manager(&mut self, ui: &mut egui::Ui) {
+    fn show_part_manager(&mut self, ui: &mut egui::Ui) {
         ui.heading("Left Panel");
-        for (i, track) in self.score.tracks.iter().enumerate() {
-            let mut selected = self.selected_tracks.contains(&i);
+        for (i, part) in self.score.parts.iter().enumerate() {
+            let mut selected = self.selected_parts.contains(&i);
             ui.checkbox(
                 &mut selected,
-                format!("Track {} {}", i, &track.description).trim(),
+                format!("Part {} {}", i, &part.description).trim(),
             );
             if selected {
-                self.selected_tracks.insert(i);
+                self.selected_parts.insert(i);
             }
             else {
-                self.selected_tracks.remove(&i);
+                self.selected_parts.remove(&i);
             }
         }
     }
@@ -109,7 +109,7 @@ impl ScoreEditor {
                     .send(player::PlayerCommands::SetBuffer({
                         let mut notes: Vec<_> = self
                             .score
-                            .tracks
+                            .parts
                             .iter()
                             .flat_map(|t| t.notes.iter())
                             .cloned()
@@ -181,7 +181,7 @@ impl ScoreEditor {
                         .send(player::PlayerCommands::SetBuffer({
                             let mut notes: Vec<_> = self
                                 .score
-                                .tracks
+                                .parts
                                 .iter()
                                 .flat_map(|t| t.notes.iter())
                                 .cloned()
@@ -212,10 +212,10 @@ impl ScoreEditor {
 
         let mut any_note_hovered = false;
 
-        for track in self.score.tracks.iter() {
-            let track_selected = self.selected_tracks.contains(&0);
-            for note in Self::visible_note_range_in(&self.view.viewport, track) {
-                let rect = self.paint_note(note, ui, &painter, track_selected);
+        for part in self.score.parts.iter() {
+            let part_selected = self.selected_parts.contains(&0);
+            for note in Self::visible_note_range_in(&self.view.viewport, part) {
+                let rect = self.paint_note(note, ui, &painter, part_selected);
                 let note_hovered = pointer_pos_raw.map(|p| rect.contains(p)).unwrap_or(false);
                 any_note_hovered |= note_hovered;
 
@@ -224,7 +224,7 @@ impl ScoreEditor {
                         self.edit.cursors.clear();
                     }
                     self.edit.cursors.push(Cursor {
-                        track: 0,
+                        part: 0,
                         time_range: (note.time..(note.time + note.duration)).into(),
                         pitch_range: (note.pitch..note.pitch).into(),
                     });
@@ -257,7 +257,7 @@ impl ScoreEditor {
                         ..Default::default()
                     };
 
-                    let notes = &mut self.score.tracks[0].notes;
+                    let notes = &mut self.score.parts[0].notes;
                     let insert_at = notes
                         .binary_search_by_key(&position, |note| note.time)
                         .unwrap_or_else(|i| i);
@@ -286,16 +286,16 @@ impl ScoreEditor {
 
     fn visible_note_range_in<'a>(
         viewport: &MidiRollViewport,
-        track: &'a music_notation::score::Part,
+        part: &'a music_notation::score::Part,
     ) -> impl Iterator<Item = &'a Note> + 'a {
-        let start = match track
+        let start = match part
             .notes
             .binary_search_by_key(&viewport.time_range.start, |note| note.time + note.duration)
         {
             Ok(i) => i,
             Err(i) => i,
         };
-        let end = match track
+        let end = match part
             .notes
             .binary_search_by_key(&viewport.time_range.end, |note| note.time)
         {
@@ -303,7 +303,7 @@ impl ScoreEditor {
             Err(i) => i,
         };
 
-        track.notes[start..end].iter()
+        part.notes[start..end].iter()
     }
 
     fn paint_beat_lines(&self, painter: &egui::Painter) {
@@ -364,7 +364,7 @@ impl ScoreEditor {
         note: &music_notation::note::Note,
         ui: &mut egui::Ui,
         painter: &egui::Painter,
-        track_selected: bool,
+        part_selected: bool,
     ) -> egui::Rect {
         let note_rect = self.view.note_box(note.time, note.duration, note.pitch);
         let note_rect = egui::Rect::from_min_size(
@@ -382,7 +382,7 @@ impl ScoreEditor {
         let pitch_color = boomwhacker_color(note.pitch.chroma());
         // let velocity_color = gradient.sample(note.velocity.to_f32());
 
-        if track_selected {
+        if part_selected {
             painter.rect_filled(note_rect, 0.0, pitch_color);
         }
         else {
@@ -450,7 +450,7 @@ fn main() {
         eframe::NativeOptions::default(),
         move |cx, _frame| {
             egui::SidePanel::left("left_panel").show(cx, |ui| {
-                score_editor.show_track_manager(ui);
+                score_editor.show_part_manager(ui);
             });
 
             egui::CentralPanel::default().show(cx, |ui| {
