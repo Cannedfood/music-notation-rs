@@ -2,6 +2,8 @@
 
 mod player;
 
+use std::collections::HashSet;
+
 use egui::{Align2, Color32, FontId};
 use music_notation::note::articulation::Velocity;
 use music_notation::note::harmony::{Chroma, Interval, Pitch};
@@ -52,6 +54,7 @@ pub struct ScoreEditor {
     pub view: MidiRoll,
     pub play_line: Time,
     pub playing: bool, // TODO: Move to player
+    pub selected_tracks: HashSet<usize>,
 }
 impl ScoreEditor {
     fn new(score: Score) -> Self {
@@ -61,7 +64,24 @@ impl ScoreEditor {
         }
     }
 
-    fn show(&mut self, ui: &mut egui::Ui, player: &Player) {
+    fn show_track_manager(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Left Panel");
+        for (i, track) in self.score.tracks.iter().enumerate() {
+            let mut selected = self.selected_tracks.contains(&i);
+            ui.checkbox(
+                &mut selected,
+                format!("Track {} {}", i, &track.description).trim(),
+            );
+            if selected {
+                self.selected_tracks.insert(i);
+            }
+            else {
+                self.selected_tracks.remove(&i);
+            }
+        }
+    }
+
+    fn show_midi_roll(&mut self, ui: &mut egui::Ui, player: &Player) {
         // Allocate rect
         let (rect, res) =
             ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
@@ -193,8 +213,9 @@ impl ScoreEditor {
         let mut any_note_hovered = false;
 
         for track in self.score.tracks.iter() {
+            let track_selected = self.selected_tracks.contains(&0);
             for note in Self::visible_note_range_in(&self.view.viewport, track) {
-                let rect = self.paint_note(note, ui, &painter);
+                let rect = self.paint_note(note, ui, &painter, track_selected);
                 let note_hovered = pointer_pos_raw.map(|p| rect.contains(p)).unwrap_or(false);
                 any_note_hovered |= note_hovered;
 
@@ -343,6 +364,7 @@ impl ScoreEditor {
         note: &music_notation::note::Note,
         ui: &mut egui::Ui,
         painter: &egui::Painter,
+        track_selected: bool,
     ) -> egui::Rect {
         let note_rect = self.view.note_box(note.time, note.duration, note.pitch);
         let note_rect = egui::Rect::from_min_size(
@@ -360,7 +382,21 @@ impl ScoreEditor {
         let pitch_color = boomwhacker_color(note.pitch.chroma());
         // let velocity_color = gradient.sample(note.velocity.to_f32());
 
-        painter.rect_filled(note_rect, 0.0, pitch_color);
+        if track_selected {
+            painter.rect_filled(note_rect, 0.0, pitch_color);
+        }
+        else {
+            painter.rect_filled(
+                note_rect,
+                0.0,
+                egui::Color32::from_rgba_unmultiplied(
+                    pitch_color.r(),
+                    pitch_color.g(),
+                    pitch_color.b(),
+                    128,
+                ),
+            );
+        }
         if hovered {
             let content_rect = note_rect.shrink(3.0);
 
@@ -402,8 +438,7 @@ impl ScoreEditor {
 fn main() {
     let mut score_editor = ScoreEditor::new(
         music_notation::score::Score::from_midi_data(include_bytes!(
-            // "../../Queen - Bohemian Rhapsody.mid"
-            "../../Never-Gonna-Give-You-Up-3.mid"
+            "../../Queen - Bohemian Rhapsody.mid"
         ))
         .unwrap(),
     );
@@ -414,8 +449,12 @@ fn main() {
         "Fun",
         eframe::NativeOptions::default(),
         move |cx, _frame| {
+            egui::SidePanel::left("left_panel").show(cx, |ui| {
+                score_editor.show_track_manager(ui);
+            });
+
             egui::CentralPanel::default().show(cx, |ui| {
-                score_editor.show(ui, &player);
+                score_editor.show_midi_roll(ui, &player);
             });
         },
     )
