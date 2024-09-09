@@ -2,6 +2,7 @@
 
 mod player;
 
+use core::f32;
 use std::collections::HashSet;
 
 use egui::{Align2, Color32, FontId};
@@ -111,6 +112,10 @@ impl ScoreEditor {
                             .score
                             .parts
                             .iter()
+                            .enumerate()
+                            .filter_map(|(i, part)| {
+                                self.selected_parts.contains(&i).then_some(part)
+                            })
                             .flat_map(|t| t.notes.iter())
                             .cloned()
                             .collect();
@@ -183,6 +188,10 @@ impl ScoreEditor {
                                 .score
                                 .parts
                                 .iter()
+                                .enumerate()
+                                .filter_map(|(i, part)| {
+                                    self.selected_parts.contains(&i).then_some(part)
+                                })
                                 .flat_map(|t| t.notes.iter())
                                 .cloned()
                                 .collect();
@@ -212,8 +221,12 @@ impl ScoreEditor {
 
         let mut any_note_hovered = false;
 
-        for part in self.score.parts.iter() {
-            let part_selected = self.selected_parts.contains(&0);
+        for (i, part) in self.score.parts.iter().enumerate() {
+            let part_selected = self.selected_parts.contains(&i);
+            if !part_selected {
+                continue;
+            }
+
             for note in Self::visible_note_range_in(&self.view.viewport, part) {
                 let rect = self.paint_note(note, ui, &painter, part_selected);
                 let note_hovered = pointer_pos_raw.map(|p| rect.contains(p)).unwrap_or(false);
@@ -369,7 +382,7 @@ impl ScoreEditor {
         let note_rect = self.view.note_box(note.time, note.duration, note.pitch);
         let note_rect = egui::Rect::from_min_size(
             (note_rect.x, note_rect.y).into(),
-            (note_rect.width, note_rect.height).into(),
+            (note_rect.width.max(5.0), note_rect.height).into(),
         );
 
         let hovered = ui.input(|i| {
@@ -393,7 +406,7 @@ impl ScoreEditor {
                     pitch_color.r(),
                     pitch_color.g(),
                     pitch_color.b(),
-                    128,
+                    0x22,
                 ),
             );
         }
@@ -442,6 +455,13 @@ fn main() {
         ))
         .unwrap(),
     );
+
+    // ron::ser::to_writer_pretty(
+    //     BufWriter::new(File::create("./out.ron").unwrap()),
+    //     &score_editor.score,
+    //     Default::default(),
+    // )
+    // .unwrap();
 
     let player = start_player();
 
