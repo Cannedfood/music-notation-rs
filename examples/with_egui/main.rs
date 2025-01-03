@@ -59,8 +59,10 @@ pub struct ScoreEditor {
 }
 impl ScoreEditor {
     fn new(score: Score) -> Self {
+        let selected_parts = (0..score.parts.len()).collect();
         ScoreEditor {
             score,
+            selected_parts,
             ..Default::default()
         }
     }
@@ -259,7 +261,7 @@ impl ScoreEditor {
                     (rect.width, rect.height).into(),
                 );
 
-                painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Color32::WHITE));
+                painter.rect_stroke(rect, 3.0, egui::Stroke::new(1.0, Color32::WHITE));
 
                 if res.clicked() {
                     let new_note = Note {
@@ -293,7 +295,7 @@ impl ScoreEditor {
                 )
                     .into(),
             );
-            painter.rect_stroke(cursor_rect, 0.0, egui::Stroke::new(1.0, Color32::WHITE));
+            painter.rect_stroke(cursor_rect, 3.0, egui::Stroke::new(1.0, Color32::WHITE));
         }
     }
 
@@ -396,12 +398,12 @@ impl ScoreEditor {
         // let velocity_color = gradient.sample(note.velocity.to_f32());
 
         if part_selected {
-            painter.rect_filled(note_rect, 0.0, pitch_color);
+            painter.rect_filled(note_rect, 3.0, pitch_color);
         }
         else {
             painter.rect_filled(
                 note_rect,
-                0.0,
+                3.0,
                 egui::Color32::from_rgba_unmultiplied(
                     pitch_color.r(),
                     pitch_color.g(),
