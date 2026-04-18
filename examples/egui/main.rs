@@ -106,7 +106,7 @@ fn main() -> Result<(), eframe::Error> {
                         }
                         .remap(viewport, Rect::from_egui(rect))
                         .to_egui()
-                        .shrink(1.0),
+                        .shrink(2.0),
                         0.0,
                         boomwhacker_color(note.pitch.chroma(), 255),
                     );
