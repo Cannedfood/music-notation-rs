@@ -1,16 +1,19 @@
 use egui::Align2;
-use music_notation::note::harmony::{Chroma, Interval};
+use music_notation::note::Note;
+use music_notation::note::harmony::{Chroma, Interval, Pitch};
 use music_notation::note::rhythm::{Duration, Time};
 use music_notation::rendering::math2d::{Lerp, Rect, Vec2, vec2};
 use music_notation::score::Score;
 
 fn main() -> Result<(), eframe::Error> {
-    let score =
+    let mut score =
         Score::from_midi_data(include_bytes!("../../Queen - Bohemian Rhapsody.mid")).unwrap();
     let mut viewport = Rect::from_ranges(
         score.time_range().unwrap_or_default(),
         score.pitch_range().unwrap_or_default(),
     );
+
+    let mut last_drawn: Option<Rect<Time, Pitch>> = None;
 
     eframe::run_ui_native(
         "Editor",
@@ -35,6 +38,18 @@ fn main() -> Result<(), eframe::Error> {
             // Drag/Move around
             if response.dragged_by(egui::PointerButton::Middle) {
                 viewport -= viewport.size() * Vec2::from_egui(response.drag_delta() / rect.size());
+            }
+
+            // Place note
+            if let Some(last_drawn) = last_drawn
+                && ui.input(|i| i.pointer.primary_released())
+            {
+                score.parts[0].notes.push(Note {
+                    time: last_drawn.left,
+                    duration: last_drawn.width(),
+                    pitch: last_drawn.top + (last_drawn.bottom - last_drawn.top) / 2.0,
+                    ..Default::default()
+                });
             }
 
             // Prepare paint: Calculate appropriate grid size
@@ -104,43 +119,45 @@ fn main() -> Result<(), eframe::Error> {
 
                 let mut start = pos.x;
                 let mut end = pos.x;
-                let mut pitch = pos.y.with_cents(0.0);
+                let mut pitch_start = pos.y.with_cents(0.0);
+                let mut pitch_end = pos.y.with_cents(0.0);
+                let mut stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+                let mut fill = egui::Color32::TRANSPARENT;
 
-                if response.dragged_by(egui::PointerButton::Primary)
+                if ui.input(|i| i.pointer.primary_down())
                     && let Some(drag_start) = ui.input(|i| i.pointer.press_origin())
                 {
                     let drag_start = Vec2::from_egui(drag_start.to_vec2())
                         .remap(Rect::from_egui(rect), viewport);
-                    pitch = drag_start.y.with_cents(0.0);
                     end = drag_start.x;
+                    fill = boomwhacker_color(pitch_start.chroma(), 128);
+                    stroke = egui::Stroke::NONE;
                 }
 
                 if start > end {
                     std::mem::swap(&mut start, &mut end);
                 }
-
-                let note_color = boomwhacker_color(pitch.chroma(), 128);
+                if pitch_start > pitch_end {
+                    std::mem::swap(&mut pitch_start, &mut pitch_end);
+                }
 
                 let note_rect = Rect {
                     left:   start.floor(grid_size),
                     right:  end.ceil(grid_size),
-                    top:    pitch - Interval::HALFSTEP * 0.5,
-                    bottom: pitch + Interval::HALFSTEP * 0.5,
-                }
-                .remap(viewport, Rect::from_egui(rect))
-                .to_egui();
-                ui.painter().rect_stroke(
-                    note_rect,
-                    0.0,
-                    (1.0, note_color),
-                    egui::StrokeKind::Inside,
-                );
+                    top:    pitch_start - Interval::HALFSTEP * 0.5,
+                    bottom: pitch_end + Interval::HALFSTEP * 0.5,
+                };
+                last_drawn = Some(note_rect);
+
+                let note_rect = note_rect.remap(viewport, Rect::from_egui(rect)).to_egui();
+                ui.painter()
+                    .rect(note_rect, 0.0, fill, stroke, egui::StrokeKind::Outside);
                 ui.painter().text(
                     note_rect.right_center(),
                     Align2::LEFT_CENTER,
                     duration_name(grid_size),
                     egui::FontId::default(),
-                    note_color,
+                    egui::Color32::WHITE,
                 );
             }
         },
