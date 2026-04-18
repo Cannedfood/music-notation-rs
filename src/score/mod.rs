@@ -1,5 +1,4 @@
 pub mod edit;
-pub mod rendering;
 
 use core::str;
 use std::ops::Range;
@@ -15,6 +14,26 @@ pub struct Score {
     pub parts:     Vec<Part>,
     pub tempo_map: Vec<(Time, Tempo)>,
 }
+impl Score {
+    pub fn time_range(&self) -> Option<Range<Time>> {
+        let ranges: Vec<_> = self.parts.iter().filter_map(|p| p.time_range()).collect();
+        let start = ranges.iter().map(|r| r.start).min()?;
+        let end = ranges.iter().map(|r| r.end).max()?;
+        Some(start..end)
+    }
+    pub fn pitch_range(&self) -> Option<Range<Pitch>> {
+        let ranges: Vec<_> = self.parts.iter().filter_map(|p| p.pitch_range()).collect();
+        let start = ranges
+            .iter()
+            .map(|r| r.start)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())?;
+        let end = ranges
+            .iter()
+            .map(|r| r.end)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())?;
+        Some(start..end)
+    }
+}
 
 #[derive(Debug, Clone, Default, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -25,6 +44,25 @@ pub struct Part {
     pub key_signature: Vec<(Time, KeySignature)>,
 }
 impl Part {
+    pub fn time_range(&self) -> Option<Range<Time>> {
+        let start = self.notes.iter().map(|n| n.time).min()?;
+        let end = self.notes.iter().map(|n| n.time + n.duration).max()?;
+        Some(start..end)
+    }
+    pub fn pitch_range(&self) -> Option<Range<Pitch>> {
+        let start = self
+            .notes
+            .iter()
+            .map(|n| n.pitch)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())?;
+        let end = self
+            .notes
+            .iter()
+            .map(|n| n.pitch)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())?;
+        Some(start..end)
+    }
+
     pub fn bars(&self) -> impl Iterator<Item = (Time, TimeSignature)> + '_ {
         self.notes
             .iter()

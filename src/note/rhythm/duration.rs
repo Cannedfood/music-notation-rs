@@ -55,6 +55,10 @@ impl std::ops::Mul<i64> for Duration {
     type Output = Duration;
     fn mul(self, rhs: i64) -> Self::Output { Duration(self.0 * rhs) }
 }
+impl std::ops::Mul<Duration> for i64 {
+    type Output = Duration;
+    fn mul(self, rhs: Duration) -> Self::Output { Duration(self * rhs.0) }
+}
 impl std::ops::Div<i64> for Duration {
     type Output = Duration;
     fn div(self, rhs: i64) -> Self::Output { Duration(self.0 / rhs) }
@@ -74,4 +78,11 @@ impl std::ops::Mul<f64> for Duration {
 impl std::ops::Div<f64> for Duration {
     type Output = Duration;
     fn div(self, rhs: f64) -> Self::Output { Duration((self.0 as f64 / rhs) as i64) }
+}
+
+impl crate::rendering::math2d::Lerp for Duration {
+    fn inverse_lerp(self, start: Self, end: Self) -> f32 {
+        (self - start).beats() as f32 / (end - start).beats() as f32
+    }
+    fn lerp(start: Self, end: Self, t: f32) -> Self { start + (end - start) * t }
 }

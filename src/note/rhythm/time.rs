@@ -1,4 +1,5 @@
 use super::Duration;
+use crate::rendering::math2d::Lerp;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Time(pub(crate) i64);
@@ -47,4 +48,11 @@ impl std::ops::AddAssign<Duration> for Time {
 
 impl std::ops::SubAssign<Duration> for Time {
     fn sub_assign(&mut self, rhs: Duration) { self.0 -= rhs.0; }
+}
+
+impl Lerp for Time {
+    fn inverse_lerp(self, start: Self, end: Self) -> f32 {
+        (self - start).beats() as f32 / (end - start).beats() as f32
+    }
+    fn lerp(start: Self, end: Self, t: f32) -> Self { start + (end - start) * t }
 }

@@ -8,9 +8,10 @@ use music_notation::note::Note;
 use music_notation::note::articulation::Velocity;
 use music_notation::note::harmony::{Chroma, Interval, Pitch};
 use music_notation::note::rhythm::{Time, TimeSignature};
+use music_notation::rendering::math2d::{Rect, Vec2};
+use music_notation::rendering::{MidiRoll, MidiRollViewport};
 use music_notation::score::Score;
 use music_notation::score::edit::{Cursor, EditState};
-use music_notation::score::rendering::{MidiRoll, MidiRollViewport, Rect, Vec2};
 use player::{Player, start_player};
 
 #[derive(Debug, Clone, Copy)]
@@ -87,10 +88,10 @@ impl ScoreEditor {
         let (rect, res) =
             ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
         self.view.rect = Rect {
-            x: rect.left(),
-            y: rect.top(),
-            width: rect.width(),
-            height: rect.height(),
+            left:   rect.left(),
+            top:    rect.top(),
+            right:  rect.right(),
+            bottom: rect.bottom(),
         };
 
         for event in player.events.try_iter() {
@@ -144,7 +145,7 @@ impl ScoreEditor {
                     i.pointer.hover_pos().unwrap_or(rect.center()),
                 )
             });
-            self.view.viewport.zoom_by_factor(
+            self.view.viewport.zoom(
                 Vec2 { x: zoomed, y: 1.0 },
                 (
                     self.view.x_to_time(cursor_pos.x),
@@ -218,8 +219,8 @@ impl ScoreEditor {
         self.paint_note_lines(&painter);
         painter.line_segment(
             [
-                (self.view.time_to_x(self.play_line), self.view.rect.top()).into(),
-                (self.view.time_to_x(self.play_line), self.view.rect.bottom()).into(),
+                (self.view.time_to_x(self.play_line), self.view.rect.top).into(),
+                (self.view.time_to_x(self.play_line), self.view.rect.bottom).into(),
             ],
             egui::Stroke::new(1.0, Color32::from_rgb(255, 0, 0)),
         );
@@ -259,8 +260,8 @@ impl ScoreEditor {
                 pointer_pos.1.with_cents(0.0),
             );
             let rect = egui::Rect::from_min_size(
-                (rect.x, rect.y).into(),
-                (rect.width, rect.height).into(),
+                (rect.left, rect.top).into(),
+                (rect.width(), rect.height()).into(),
             );
 
             painter.rect_stroke(
@@ -356,8 +357,8 @@ impl ScoreEditor {
 
             painter.line_segment(
                 [
-                    (x, self.view.rect.top()).into(),
-                    (x, self.view.rect.bottom()).into(),
+                    (x, self.view.rect.top).into(),
+                    (x, self.view.rect.bottom).into(),
                 ],
                 stroke,
             );
@@ -377,8 +378,8 @@ impl ScoreEditor {
             let y = self.view.pitch_to_y(pitch.with_cents(-50.0));
             painter.line_segment(
                 [
-                    (self.view.rect.left(), y).into(),
-                    (self.view.rect.right(), y).into(),
+                    (self.view.rect.left, y).into(),
+                    (self.view.rect.right, y).into(),
                 ],
                 stroke,
             );
@@ -394,8 +395,8 @@ impl ScoreEditor {
     ) -> egui::Rect {
         let note_rect = self.view.note_box(note.time, note.duration, note.pitch);
         let note_rect = egui::Rect::from_min_size(
-            (note_rect.x, note_rect.y).into(),
-            (note_rect.width.max(5.0), note_rect.height).into(),
+            (note_rect.left, note_rect.top).into(),
+            (note_rect.width().max(5.0), note_rect.height()).into(),
         );
 
         let hovered = ui.input(|i| {
@@ -428,8 +429,8 @@ impl ScoreEditor {
 
             let mut text_position = content_rect.left_center();
             let mut outside = false;
-            if text_position.x < self.view.rect.left() {
-                text_position.x = self.view.rect.left();
+            if text_position.x < self.view.rect.left {
+                text_position.x = self.view.rect.left;
                 outside = true;
             }
 
