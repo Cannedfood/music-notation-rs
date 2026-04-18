@@ -14,6 +14,7 @@ fn main() -> Result<(), eframe::Error> {
     );
 
     let mut last_drawn: Option<Rect<Time, Pitch>> = None;
+    let mut selections: Vec<Rect<Time, Pitch>> = Vec::new();
 
     eframe::run_ui_native(
         "Editor",
@@ -68,8 +69,47 @@ fn main() -> Result<(), eframe::Error> {
                 }
 
                 if place_note {
+                    selections = vec![Rect {
+                        left:   note.time,
+                        top:    note.pitch - Interval::HALFSTEP * 0.5,
+                        right:  note.time + note.duration,
+                        bottom: note.pitch + Interval::HALFSTEP * 0.5,
+                    }];
                     score.parts[0].notes.push(note);
                 }
+            }
+
+            // Handle selection
+            if let Some(last_drawn) = last_drawn
+                && ui.input(|i| i.pointer.secondary_released())
+            {
+                selections = score
+                    .parts
+                    .iter()
+                    .flat_map(|p| p.notes.iter())
+                    .filter(|n| {
+                        let n_left = n.time;
+                        let n_right = n.time + n.duration;
+                        let n_top = n.pitch - Interval::HALFSTEP * 0.5;
+                        let n_bottom = n.pitch + Interval::HALFSTEP * 0.5;
+
+                        n_left < last_drawn.right
+                            && n_right > last_drawn.left
+                            && n_top < last_drawn.bottom
+                            && n_bottom > last_drawn.top
+                    })
+                    .map(|n| {
+                        let start = n.time;
+                        let end = n.time + n.duration;
+
+                        Rect {
+                            left:   start,
+                            right:  end,
+                            top:    n.pitch - Interval::HALFSTEP * 0.5,
+                            bottom: n.pitch + Interval::HALFSTEP * 0.5,
+                        }
+                    })
+                    .collect();
             }
 
             // Prepare paint: Calculate appropriate grid size
@@ -133,6 +173,17 @@ fn main() -> Result<(), eframe::Error> {
                 }
             }
 
+            // Paint selections
+            for selection in selections.iter() {
+                let selection = selection.remap(viewport, Rect::from_egui(rect)).to_egui();
+                ui.painter().rect_stroke(
+                    selection.shrink(1.0),
+                    0.0,
+                    (1.0, egui::Color32::WHITE),
+                    egui::StrokeKind::Outside,
+                );
+            }
+
             // Paint highlighted note
             if let Some(pointer) = ui.pointer_latest_pos() {
                 let pos = Vec2::from_egui(pointer.to_vec2()).remap(Rect::from_egui(rect), viewport);
@@ -152,6 +203,15 @@ fn main() -> Result<(), eframe::Error> {
                     end = drag_start.x;
                     fill = boomwhacker_color(pitch_start.chroma(), 128);
                     stroke = egui::Stroke::NONE;
+                }
+
+                if ui.input(|i| i.pointer.secondary_down())
+                    && let Some(drag_start) = ui.input(|i| i.pointer.press_origin())
+                {
+                    let drag_start = Vec2::from_egui(drag_start.to_vec2())
+                        .remap(Rect::from_egui(rect), viewport);
+                    end = drag_start.x;
+                    pitch_end = drag_start.y;
                 }
 
                 if start > end {
