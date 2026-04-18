@@ -44,12 +44,32 @@ fn main() -> Result<(), eframe::Error> {
             if let Some(last_drawn) = last_drawn
                 && ui.input(|i| i.pointer.primary_released())
             {
-                score.parts[0].notes.push(Note {
+                let note = Note {
                     time: last_drawn.left,
                     duration: last_drawn.width(),
                     pitch: last_drawn.top + (last_drawn.bottom - last_drawn.top) / 2.0,
                     ..Default::default()
-                });
+                };
+
+                let mut place_note = true;
+                for part in score.parts.iter_mut() {
+                    part.notes.retain(|n| {
+                        if n.pitch != note.pitch {
+                            return true;
+                        }
+
+                        let exact_overlap = n.time == note.time && n.duration == note.duration;
+                        if exact_overlap {
+                            place_note = false;
+                        }
+
+                        n.time >= (note.time + note.duration) || n.time + n.duration <= note.time
+                    });
+                }
+
+                if place_note {
+                    score.parts[0].notes.push(note);
+                }
             }
 
             // Prepare paint: Calculate appropriate grid size
