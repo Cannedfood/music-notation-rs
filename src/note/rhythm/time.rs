@@ -8,6 +8,10 @@ pub type TimeRange = core::range::Range<Time>;
 
 impl Time {
     pub const ZERO: Time = Time(0);
+
+    pub fn round(self, grid: Duration) -> Time { Time::ZERO + (self - Time::ZERO).round(grid) }
+    pub fn floor(self, grid: Duration) -> Time { Time::ZERO + (self - Time::ZERO).floor(grid) }
+    pub fn ceil(self, grid: Duration) -> Time { Time::ZERO + (self - Time::ZERO).ceil(grid) }
 }
 
 #[cfg(feature = "serde")]
@@ -51,8 +55,10 @@ impl std::ops::SubAssign<Duration> for Time {
 }
 
 impl Lerp for Time {
-    fn inverse_lerp(self, start: Self, end: Self) -> f32 {
-        (self - start).beats() as f32 / (end - start).beats() as f32
+    fn inverse_lerp(self, range: std::ops::RangeInclusive<Self>) -> f32 {
+        (self - *range.start()).beats() as f32 / (*range.end() - *range.start()).beats() as f32
     }
-    fn lerp(start: Self, end: Self, t: f32) -> Self { start + (end - start) * t }
+    fn lerp(range: std::ops::RangeInclusive<Self>, t: f32) -> Self {
+        *range.start() + (*range.end() - *range.start()) * t
+    }
 }

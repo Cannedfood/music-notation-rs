@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use super::{Chroma, Interval};
+use crate::rendering::math2d::Lerp;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -74,9 +75,11 @@ impl std::iter::Step for Pitch {
     }
 }
 
-impl crate::rendering::math2d::Lerp for Pitch {
-    fn inverse_lerp(self, start: Self, end: Self) -> f32 {
-        (self - start).halfsteps() / (end - start).halfsteps()
+impl Lerp for Pitch {
+    fn inverse_lerp(self, range: std::ops::RangeInclusive<Self>) -> f32 {
+        (self - *range.start()).halfsteps() / (*range.end() - *range.start()).halfsteps()
     }
-    fn lerp(start: Self, end: Self, t: f32) -> Self { start + (end - start) * t }
+    fn lerp(range: std::ops::RangeInclusive<Self>, t: f32) -> Self {
+        *range.start() + (*range.end() - *range.start()) * t
+    }
 }

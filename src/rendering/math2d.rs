@@ -61,18 +61,18 @@ impl<X: Copy, Y: Copy> Rect<X, Y> {
 impl<X: Lerp, Y: Lerp> Rect<X, Y> {
     pub fn remap<X2: Lerp, Y2: Lerp>(self, from: Rect<X, Y>, to: Rect<X2, Y2>) -> Rect<X2, Y2> {
         Rect {
-            left:   self.left.remap(from.left..from.right, to.left..to.right),
-            right:  self.right.remap(from.left..from.right, to.left..to.right),
-            top:    self.top.remap(from.top..from.bottom, to.top..to.bottom),
-            bottom: self.bottom.remap(from.top..from.bottom, to.top..to.bottom),
+            left:   self.left.remap(from.x_range(), to.x_range()),
+            right:  self.right.remap(from.x_range(), to.x_range()),
+            top:    self.top.remap(from.y_range(), to.y_range()),
+            bottom: self.bottom.remap(from.y_range(), to.y_range()),
         }
     }
     pub fn zoom(self, factor: Vec2<f32, f32>, pivot: Vec2<X, Y>) -> Self {
         Rect {
-            left:   X::lerp(pivot.x, self.left, factor.x),
-            right:  X::lerp(pivot.x, self.right, factor.x),
-            top:    Y::lerp(pivot.y, self.top, factor.y),
-            bottom: Y::lerp(pivot.y, self.bottom, factor.y),
+            left:   X::lerp(pivot.x..=self.left, factor.x),
+            right:  X::lerp(pivot.x..=self.right, factor.x),
+            top:    Y::lerp(pivot.y..=self.top, factor.y),
+            bottom: Y::lerp(pivot.y..=self.bottom, factor.y),
         }
     }
     pub fn zoom_by_clicks(self, clicks: Vec2<f32, f32>, pivot: Vec2<X, Y>) -> Self {
@@ -94,23 +94,31 @@ pub struct Vec2<X = f32, Y = f32> {
 impl<X: Lerp, Y: Lerp> Vec2<X, Y> {
     pub fn remap<X2: Lerp, Y2: Lerp>(self, from: Rect<X, Y>, to: Rect<X2, Y2>) -> Vec2<X2, Y2> {
         Vec2 {
-            x: self.x.remap(from.left..from.right, to.left..to.right),
-            y: self.y.remap(from.top..from.bottom, to.top..to.bottom),
+            x: self.x.remap(from.x_range(), to.x_range()),
+            y: self.y.remap(from.y_range(), to.y_range()),
         }
     }
 }
 pub fn vec2<X, Y>(x: X, y: Y) -> Vec2<X, Y> { Vec2 { x, y } }
 
 pub trait Lerp: Copy {
-    fn lerp(start: Self, end: Self, t: f32) -> Self;
-    fn inverse_lerp(self, start: Self, end: Self) -> f32;
-    fn remap<T: Lerp>(self, from: std::ops::Range<Self>, to: std::ops::Range<T>) -> T {
-        T::lerp(to.start, to.end, self.inverse_lerp(from.start, from.end))
+    fn lerp(range: std::ops::RangeInclusive<Self>, t: f32) -> Self;
+    fn inverse_lerp(self, range: std::ops::RangeInclusive<Self>) -> f32;
+    fn remap<T: Lerp>(
+        self,
+        from: std::ops::RangeInclusive<Self>,
+        to: std::ops::RangeInclusive<T>,
+    ) -> T {
+        T::lerp(to, self.inverse_lerp(from))
     }
 }
 impl Lerp for f32 {
-    fn lerp(start: Self, end: Self, t: f32) -> Self { start + t * (end - start) }
-    fn inverse_lerp(self, start: Self, end: Self) -> f32 { (self - start) / (end - start) }
+    fn lerp(range: std::ops::RangeInclusive<Self>, t: f32) -> Self {
+        range.start() + t * (range.end() - range.start())
+    }
+    fn inverse_lerp(self, range: std::ops::RangeInclusive<Self>) -> f32 {
+        (self - range.start()) / (range.end() - range.start())
+    }
 }
 
 macro_rules! impl_binop {
