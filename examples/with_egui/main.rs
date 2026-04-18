@@ -1,19 +1,17 @@
-#![feature(new_range_api)]
-
 mod player;
 
 use core::f32;
 use std::collections::HashSet;
 
 use egui::{Align2, Color32, FontId};
+use music_notation::note::Note;
 use music_notation::note::articulation::Velocity;
 use music_notation::note::harmony::{Chroma, Interval, Pitch};
 use music_notation::note::rhythm::{Time, TimeSignature};
-use music_notation::note::Note;
+use music_notation::score::Score;
 use music_notation::score::edit::{Cursor, EditState};
 use music_notation::score::rendering::{MidiRoll, MidiRollViewport, Rect, Vec2};
-use music_notation::score::Score;
-use player::{start_player, Player};
+use player::{Player, start_player};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Gradient<const N: usize>([egui::Color32; N]);
@@ -175,39 +173,44 @@ impl ScoreEditor {
                 .map(|p| (self.view.x_to_time(p.x), self.view.y_to_pitch(p.y)))
         });
 
-        if res.clicked_by(egui::PointerButton::Secondary) {
-            if let Some(pointer_pos) = pointer_pos {
-                self.play_line = pointer_pos.0;
-                if self.playing {
-                    player
-                        .commands
-                        .send(player::PlayerCommands::SetTime(self.play_line))
-                        .unwrap();
-                    player
-                        .commands
-                        .send(player::PlayerCommands::SetBuffer({
-                            let mut notes: Vec<_> = self
-                                .score
-                                .parts
-                                .iter()
-                                .enumerate()
-                                .filter_map(|(i, part)| {
-                                    self.selected_parts.contains(&i).then_some(part)
-                                })
-                                .flat_map(|t| t.notes.iter())
-                                .cloned()
-                                .collect();
-                            notes.sort_unstable_by_key(|n| n.time);
-                            notes
-                        }))
-                        .unwrap();
-                }
+        if res.clicked_by(egui::PointerButton::Secondary)
+            && let Some(pointer_pos) = pointer_pos
+        {
+            self.play_line = pointer_pos.0;
+            if self.playing {
+                player
+                    .commands
+                    .send(player::PlayerCommands::SetTime(self.play_line))
+                    .unwrap();
+                player
+                    .commands
+                    .send(player::PlayerCommands::SetBuffer({
+                        let mut notes: Vec<_> = self
+                            .score
+                            .parts
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(i, part)| {
+                                self.selected_parts.contains(&i).then_some(part)
+                            })
+                            .flat_map(|t| t.notes.iter())
+                            .cloned()
+                            .collect();
+                        notes.sort_unstable_by_key(|n| n.time);
+                        notes
+                    }))
+                    .unwrap();
             }
         }
 
         // Paint background / border
-        ui.painter()
-            .rect(rect, 0.0, egui::Color32::BLACK, (1.0, egui::Color32::WHITE));
+        ui.painter().rect(
+            rect,
+            0.0,
+            egui::Color32::BLACK,
+            (1.0, egui::Color32::WHITE),
+            egui::StrokeKind::Outside,
+        );
 
         // Paint content
         let painter = ui.painter_at(rect);
@@ -247,37 +250,40 @@ impl ScoreEditor {
             }
         }
 
-        if !any_note_hovered {
-            if let Some(pointer_pos) = pointer_pos {
-                let time_sig = TimeSignature::default();
-                let position = time_sig.grid(Time::ZERO).closest(pointer_pos.0).unwrap();
-                let rect = self.view.note_box(
-                    position,
-                    time_sig.subdivision_duration(),
-                    pointer_pos.1.with_cents(0.0),
-                );
-                let rect = egui::Rect::from_min_size(
-                    (rect.x, rect.y).into(),
-                    (rect.width, rect.height).into(),
-                );
+        if !any_note_hovered && let Some(pointer_pos) = pointer_pos {
+            let time_sig = TimeSignature::default();
+            let position = time_sig.grid(Time::ZERO).closest(pointer_pos.0).unwrap();
+            let rect = self.view.note_box(
+                position,
+                time_sig.subdivision_duration(),
+                pointer_pos.1.with_cents(0.0),
+            );
+            let rect = egui::Rect::from_min_size(
+                (rect.x, rect.y).into(),
+                (rect.width, rect.height).into(),
+            );
 
-                painter.rect_stroke(rect, 3.0, egui::Stroke::new(1.0, Color32::WHITE));
+            painter.rect_stroke(
+                rect,
+                3.0,
+                egui::Stroke::new(1.0, Color32::WHITE),
+                egui::StrokeKind::Outside,
+            );
 
-                if res.clicked() {
-                    let new_note = Note {
-                        time: position,
-                        duration: time_sig.subdivision_duration(),
-                        pitch: pointer_pos.1.with_cents(0.0),
-                        velocity: Velocity::from_f32(1.0),
-                        ..Default::default()
-                    };
+            if res.clicked() {
+                let new_note = Note {
+                    time: position,
+                    duration: time_sig.subdivision_duration(),
+                    pitch: pointer_pos.1.with_cents(0.0),
+                    velocity: Velocity::from_f32(1.0),
+                    ..Default::default()
+                };
 
-                    let notes = &mut self.score.parts[0].notes;
-                    let insert_at = notes
-                        .binary_search_by_key(&position, |note| note.time)
-                        .unwrap_or_else(|i| i);
-                    notes.insert(insert_at, new_note);
-                }
+                let notes = &mut self.score.parts[0].notes;
+                let insert_at = notes
+                    .binary_search_by_key(&position, |note| note.time)
+                    .unwrap_or_else(|i| i);
+                notes.insert(insert_at, new_note);
             }
         }
 
@@ -295,7 +301,12 @@ impl ScoreEditor {
                 )
                     .into(),
             );
-            painter.rect_stroke(cursor_rect, 3.0, egui::Stroke::new(1.0, Color32::WHITE));
+            painter.rect_stroke(
+                cursor_rect,
+                3.0,
+                egui::Stroke::new(1.0, Color32::WHITE),
+                egui::StrokeKind::Outside,
+            );
         }
     }
 
@@ -467,15 +478,15 @@ fn main() {
 
     let player = start_player();
 
-    eframe::run_simple_native(
+    eframe::run_ui_native(
         "Fun",
         eframe::NativeOptions::default(),
-        move |cx, _frame| {
-            egui::SidePanel::left("left_panel").show(cx, |ui| {
+        move |ui, _frame| {
+            egui::Panel::left("left_panel").show_inside(ui, |ui| {
                 score_editor.show_part_manager(ui);
             });
 
-            egui::CentralPanel::default().show(cx, |ui| {
+            egui::CentralPanel::default().show_inside(ui, |ui| {
                 score_editor.show_midi_roll(ui, &player);
             });
         },

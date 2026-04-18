@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use music_notation::note::rhythm::{Duration, Time};
 use music_notation::note::Note;
+use music_notation::note::rhythm::{Duration, Time};
 
 pub enum PlayerCommands {
     SetBuffer(Vec<Note>),
@@ -170,7 +170,7 @@ pub fn start_player() -> Player {
     let (mut state, commands, events) = PlayerState::new();
 
     let channels = config.channels() as usize;
-    let sample_rate = config.sample_rate().0;
+    let sample_rate = config.sample_rate();
     let stream = device
         .build_output_stream(
             &config.config(),

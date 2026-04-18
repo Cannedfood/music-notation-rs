@@ -1,5 +1,5 @@
-use crate::note::harmony::{Chroma, Interval, Pitch};
 use crate::note::Note;
+use crate::note::harmony::{Chroma, Interval, Pitch};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct GuitarTuning {

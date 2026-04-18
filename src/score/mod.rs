@@ -4,10 +4,10 @@ pub mod rendering;
 use core::str;
 use std::ops::Range;
 
+use crate::note::Note;
 use crate::note::articulation::Velocity;
 use crate::note::harmony::{KeySignature, Pitch};
 use crate::note::rhythm::{Duration, Tempo, Time, TimeSignature};
-use crate::note::Note;
 
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -32,7 +32,7 @@ impl Part {
             .max()
             .unwrap_or(Time::ZERO);
 
-        return TimeSignature::default()
+        TimeSignature::default()
             .bars_in(
                 Time::ZERO,
                 self.notes
@@ -41,7 +41,7 @@ impl Part {
                     .max()
                     .unwrap_or(Time::ZERO),
             )
-            .map(|t| (t, TimeSignature::default()));
+            .map(|t| (t, TimeSignature::default()))
     }
 }
 

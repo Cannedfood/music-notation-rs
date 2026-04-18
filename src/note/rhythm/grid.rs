@@ -30,7 +30,7 @@ impl TimeSignature {
         Duration(Duration::BEAT / self.subdivision as i64)
     }
     pub fn bar_length(&self) -> Duration { self.subdivision_duration() * self.numerator as i64 }
-    pub fn bars_in(&self, start: Time, end: Time) -> impl Iterator<Item = Time> {
+    pub fn bars_in(&self, start: Time, end: Time) -> impl Iterator<Item = Time> + use<> {
         let num_bars = ((end - start) + Duration(self.bar_length().0 - 1)) / self.bar_length();
         let bar_length = self.bar_length();
         (0..num_bars).map(move |i| start + bar_length * i)
