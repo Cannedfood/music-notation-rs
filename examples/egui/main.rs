@@ -41,6 +41,14 @@ fn main() -> Result<(), eframe::Error> {
                 viewport -= viewport.size() * Vec2::from_egui(response.drag_delta() / rect.size());
             }
 
+            // Prepare paint: Calculate appropriate grid size
+            let grid_min_size = viewport.width() / 50;
+
+            let mut grid_size = Duration::WHOLE;
+            while grid_size / 2 > grid_min_size {
+                grid_size /= 2;
+            }
+
             // Place note
             if let Some(last_drawn) = last_drawn
                 && ui.input(|i| i.pointer.primary_released())
@@ -69,13 +77,41 @@ fn main() -> Result<(), eframe::Error> {
                 }
 
                 if place_note {
-                    selections = vec![Rect {
-                        left:   note.time,
-                        top:    note.pitch - Interval::HALFSTEP * 0.5,
-                        right:  note.time + note.duration,
-                        bottom: note.pitch + Interval::HALFSTEP * 0.5,
-                    }];
-                    score.parts[0].notes.push(note);
+                    selections.clear();
+                    if ui.input(|i| i.modifiers.alt) {
+                        let start = note.time;
+                        let end = note.time + note.duration;
+
+                        for i in 0.. {
+                            let time = start + grid_size * i as i64;
+                            if time >= end {
+                                break;
+                            }
+
+                            let note = Note {
+                                time,
+                                duration: grid_size,
+                                ..note.clone()
+                            };
+
+                            selections.push(Rect {
+                                left:   note.time,
+                                top:    note.pitch - Interval::HALFSTEP * 0.5,
+                                right:  note.time + note.duration,
+                                bottom: note.pitch + Interval::HALFSTEP * 0.5,
+                            });
+                            score.parts[0].notes.push(note);
+                        }
+                    }
+                    else {
+                        selections.push(Rect {
+                            left:   note.time,
+                            top:    note.pitch - Interval::HALFSTEP * 0.5,
+                            right:  note.time + note.duration,
+                            bottom: note.pitch + Interval::HALFSTEP * 0.5,
+                        });
+                        score.parts[0].notes.push(note);
+                    }
                 }
             }
 
@@ -110,14 +146,6 @@ fn main() -> Result<(), eframe::Error> {
                         }
                     })
                     .collect();
-            }
-
-            // Prepare paint: Calculate appropriate grid size
-            let grid_min_size = viewport.width() / 50;
-
-            let mut grid_size = Duration::WHOLE;
-            while grid_size / 2 > grid_min_size {
-                grid_size /= 2;
             }
 
             // Paint grid
@@ -244,15 +272,12 @@ fn main() -> Result<(), eframe::Error> {
     )
 }
 
-fn duration_name(duration: Duration) -> &'static str {
-    match duration {
-        Duration::SIXTEENTH => "1/16",
-        Duration::EIGHTH => "1/8",
-        Duration::QUARTER => "1/4",
-        Duration::HALF => "1/2",
-        Duration::WHOLE => "1",
-        _ => "?",
+fn duration_name(duration: Duration) -> String {
+    if duration == Duration::WHOLE {
+        return "1".to_string();
     }
+    let n = Duration::WHOLE / duration;
+    format!("1/{}", n)
 }
 
 trait EguiConvert {
