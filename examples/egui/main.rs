@@ -44,10 +44,8 @@ fn main() -> Result<(), eframe::Error> {
             // Prepare paint: Calculate appropriate grid size
             let grid_min_size = viewport.width() / 50;
 
-            let mut grid_size = Duration::WHOLE;
-            while grid_size / 2 > grid_min_size {
-                grid_size /= 2;
-            }
+            let grid_size =
+                Duration::from_beats_f64(2.0f64.powf((grid_min_size.beats()).log2().floor() + 1.0));
 
             // Place note
             if let Some(last_drawn) = last_drawn
@@ -148,36 +146,42 @@ fn main() -> Result<(), eframe::Error> {
                     .collect();
             }
 
-            // Paint grid
+            // Paint grid (logarithmic with smooth transitions)
+            // Compute smooth fade factor: how close is the finest level to transitioning?
+            // lines_in_viewport ranges from ~25 (well-spaced) to ~50 (about to appear)
+            let lines_in_viewport = viewport.width() / grid_size;
+            let fade = (50.0 / lines_in_viewport.max(1) as f32 - 1.0).clamp(0.0, 1.0);
+            let num_levels = 4u32;
+
             for i in 0.. {
                 let time = viewport.left.ceil(grid_size) + grid_size * i as i64;
                 if time > viewport.right {
                     break;
                 }
 
+                // Compute depth: how many coarser levels this line aligns with
+                let offset = time - Time::ZERO;
+                let depth = (offset / grid_size).trailing_zeros().min(num_levels);
+
+                // Alpha smoothly interpolated: depth 0 (finest) is dimmest, higher = brighter
+                // fade makes the finest level smoothly appear/disappear during zoom transitions
+                let alpha =
+                    ((depth as f32 + fade) / (num_levels as f32) * 255.0).clamp(0.0, 255.0) as u8;
+
+                if alpha == 0 {
+                    continue;
+                }
+
                 let x = time.remap(viewport.x_range(), Rect::from_egui(rect).x_range());
+                let width = if offset % (Duration::WHOLE * 4) == Duration::ZERO {
+                    5.0
+                }
+                else {
+                    1.0
+                };
                 ui.painter().line_segment(
                     [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
-                    (
-                        1.0,
-                        egui::Color32::from_white_alpha(
-                            if (Time::ZERO - time) % Duration::WHOLE == Duration::ZERO {
-                                255
-                            }
-                            else if (Time::ZERO - time) % Duration::BEAT == Duration::ZERO {
-                                128
-                            }
-                            else if (Time::ZERO - time) % Duration::EIGHTH == Duration::ZERO {
-                                64
-                            }
-                            else if (Time::ZERO - time) % Duration::SIXTEENTH == Duration::ZERO {
-                                32
-                            }
-                            else {
-                                0
-                            },
-                        ),
-                    ),
+                    (width, egui::Color32::from_white_alpha(alpha)),
                 );
             }
 
@@ -273,11 +277,14 @@ fn main() -> Result<(), eframe::Error> {
 }
 
 fn duration_name(duration: Duration) -> String {
-    if duration == Duration::WHOLE {
-        return "1".to_string();
+    if duration >= Duration::WHOLE {
+        let n = duration / Duration::WHOLE;
+        format!("{}", n)
     }
-    let n = Duration::WHOLE / duration;
-    format!("1/{}", n)
+    else {
+        let n = Duration::WHOLE / duration;
+        format!("1/{}", n)
+    }
 }
 
 trait EguiConvert {
