@@ -90,6 +90,140 @@ pub struct Bar {
     pub notes: Range<usize>,
 }
 
+// ── TuxGuitar (.tg) import ──────────────────────────────────────────────────
+
+#[cfg(feature = "tuxguitar")]
+#[derive(Debug, Clone)]
+pub enum FromTgError {
+    ReadError(tuxguitar::reader::ReadError),
+}
+
+#[cfg(feature = "tuxguitar")]
+impl From<tuxguitar::reader::ReadError> for FromTgError {
+    fn from(e: tuxguitar::reader::ReadError) -> Self { FromTgError::ReadError(e) }
+}
+
+#[cfg(feature = "tuxguitar")]
+impl Score {
+    /// Parse a TuxGuitar `.tg` file from a reader and convert it into a [`Score`].
+    pub fn from_tg_data<R: std::io::Read + std::io::Seek>(reader: R) -> Result<Self, FromTgError> {
+        let tg_song = tuxguitar::reader::read_tg(reader)?;
+        Ok(Self::from_tg_song(&tg_song))
+    }
+
+    /// Convert a parsed [`tuxguitar::model::TgSong`] into a [`Score`].
+    pub fn from_tg_song(song: &tuxguitar::model::TgSong) -> Self {
+        use tuxguitar::model as tg;
+
+        // Scale factor: TG uses 960 ticks per quarter, we use Duration::BEAT.
+        const SCALE: i64 = Duration::BEAT / tg::QUARTER_TIME;
+
+        // Build the tempo map from measure headers.
+        let mut tempo_map: Vec<(Time, Tempo)> = Vec::new();
+        let mut prev_tempo_qv: i32 = 0;
+        for hdr in &song.measure_headers {
+            let qv = hdr.tempo.quarter_value();
+            if qv != prev_tempo_qv {
+                let time = Time((hdr.start - tg::QUARTER_TIME) * SCALE);
+                tempo_map.push((time, Tempo(qv as f32)));
+                prev_tempo_qv = qv;
+            }
+        }
+
+        // Convert each track to a Part.
+        let parts: Vec<Part> = song
+            .tracks
+            .iter()
+            .map(|track| {
+                let mut part = Part {
+                    description: track.name.clone(),
+                    ..Default::default()
+                };
+
+                // Build time_signature changes from measure headers.
+                let mut prev_ts: Option<(i32, i32)> = None;
+                for hdr in &song.measure_headers {
+                    let ts_pair = (hdr.time_signature.numerator, hdr.time_signature.denominator);
+                    if prev_ts != Some(ts_pair) {
+                        let time = Time((hdr.start - tg::QUARTER_TIME) * SCALE);
+                        part.time_signature.push((time, TimeSignature {
+                            numerator:   ts_pair.0 as u8,
+                            subdivision: ts_pair.1 as u8,
+                        }));
+                        prev_ts = Some(ts_pair);
+                    }
+                }
+
+                // Build key_signature changes from measures.
+                let mut prev_ks: Option<i32> = None;
+                for (measure, hdr) in track.measures.iter().zip(song.measure_headers.iter()) {
+                    if prev_ks != Some(measure.key_signature) {
+                        let time = Time((hdr.start - tg::QUARTER_TIME) * SCALE);
+                        part.key_signature.push((time, KeySignature {
+                            flats_sharps: measure.key_signature as i8,
+                            major: true,
+                        }));
+                        prev_ks = Some(measure.key_signature);
+                    }
+                }
+
+                // Convert notes from beats/voices.
+                for (measure_idx, measure) in track.measures.iter().enumerate() {
+                    let _hdr = &song.measure_headers[measure_idx];
+                    for beat in &measure.beats {
+                        // Beat approximate start in TG ticks.
+                        let beat_tg_ticks =
+                            tg::QUARTER_TIME * 4 * beat.precise_start / tg::WHOLE_PRECISE_DURATION;
+                        let beat_time = Time((beat_tg_ticks - tg::QUARTER_TIME) * SCALE);
+
+                        for voice in &beat.voices {
+                            if voice.empty {
+                                continue;
+                            }
+                            let voice_dur = Duration(voice.duration.ticks() * SCALE);
+
+                            for note in &voice.notes {
+                                // Compute MIDI pitch: string tuning + fret.
+                                let midi_pitch = if (note.string as usize) <= track.strings.len()
+                                    && note.string >= 1
+                                {
+                                    let string_val = track.strings[note.string as usize - 1].value;
+                                    string_val + note.value
+                                }
+                                else {
+                                    // Fallback: just use the fret value.
+                                    note.value
+                                };
+
+                                part.notes.push(Note {
+                                    time: beat_time,
+                                    duration: voice_dur,
+                                    pitch: Pitch::from_midi(midi_pitch),
+                                    velocity: Velocity::from_midi(note.velocity as u8),
+                                    string: if note.string > 0 {
+                                        Some(note.string as u8)
+                                    }
+                                    else {
+                                        None
+                                    },
+                                    ..Default::default()
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Sort notes by time for consistent ordering.
+                part.notes.sort_by_key(|a| a.time);
+
+                part
+            })
+            .collect();
+
+        Score { parts, tempo_map }
+    }
+}
+
 #[cfg(feature = "midly")]
 #[derive(Debug, Clone)]
 pub enum FromMidiError {

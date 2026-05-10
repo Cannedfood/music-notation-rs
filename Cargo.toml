@@ -5,10 +5,14 @@ edition = "2024"
 description = "A library for music theory and notation. Eventually, this is meant to be the basis for a music composition program."
 license = "MIT"
 
+[workspace]
+members = [".", "tuxguitar"]
+
 [dependencies]
 midly = { version = "0.5.3", optional = true , features = ["std"], default-features = false }
 ron = "0.12.1"
 serde = { version = "1.0.228", features = ["derive"], optional = true }
+tuxguitar = { path = "tuxguitar", optional = true }
 
 [dev-dependencies]
 eframe = "0.34.1"
@@ -16,4 +20,4 @@ egui = "0.34.1"
 cpal = "0.17.3"
 
 [features]
-default = ["midly", "serde"]
+default = ["midly", "serde", "tuxguitar"]
