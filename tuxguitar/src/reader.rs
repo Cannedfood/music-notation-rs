@@ -224,17 +224,18 @@ fn child_i16(node: Node<'_, '_>, name: &str, default: i16) -> Result<i16, ReadEr
 // =============================================================================
 
 fn parse_song(node: Node<'_, '_>) -> Result<TgSong, ReadError> {
-    let mut song = TgSong::default();
-
-    song.name = child_text(node, "name").unwrap_or("").to_string();
-    song.artist = child_text(node, "artist").unwrap_or("").to_string();
-    song.album = child_text(node, "album").unwrap_or("").to_string();
-    song.author = child_text(node, "author").unwrap_or("").to_string();
-    song.date = child_text(node, "date").unwrap_or("").to_string();
-    song.copyright = child_text(node, "copyright").unwrap_or("").to_string();
-    song.writer = child_text(node, "writer").unwrap_or("").to_string();
-    song.transcriber = child_text(node, "transcriber").unwrap_or("").to_string();
-    song.comments = child_text(node, "comments").unwrap_or("").to_string();
+    let mut song = TgSong {
+        name: child_text(node, "name").unwrap_or("").to_string(),
+        artist: child_text(node, "artist").unwrap_or("").to_string(),
+        album: child_text(node, "album").unwrap_or("").to_string(),
+        author: child_text(node, "author").unwrap_or("").to_string(),
+        date: child_text(node, "date").unwrap_or("").to_string(),
+        copyright: child_text(node, "copyright").unwrap_or("").to_string(),
+        writer: child_text(node, "writer").unwrap_or("").to_string(),
+        transcriber: child_text(node, "transcriber").unwrap_or("").to_string(),
+        comments: child_text(node, "comments").unwrap_or("").to_string(),
+        ..Default::default()
+    };
 
     // Parse channels
     for ch_node in node
@@ -286,18 +287,19 @@ fn parse_song(node: Node<'_, '_>) -> Result<TgSong, ReadError> {
 // =============================================================================
 
 fn parse_channel(node: Node<'_, '_>) -> Result<TgChannel, ReadError> {
-    let mut ch = TgChannel::default();
-
-    ch.channel_id = child_i32(node, "id", 0)?;
-    ch.bank = child_i16(node, "bank", 0)?;
-    ch.program = child_i16(node, "program", 0)?;
-    ch.volume = child_i16(node, "volume", 127)?;
-    ch.balance = child_i16(node, "balance", 64)?;
-    ch.chorus = child_i16(node, "chorus", 0)?;
-    ch.reverb = child_i16(node, "reverb", 0)?;
-    ch.phaser = child_i16(node, "phaser", 0)?;
-    ch.tremolo = child_i16(node, "tremolo", 0)?;
-    ch.name = child_text(node, "name").unwrap_or("").to_string();
+    let mut ch = TgChannel {
+        channel_id: child_i32(node, "id", 0)?,
+        bank: child_i16(node, "bank", 0)?,
+        program: child_i16(node, "program", 0)?,
+        volume: child_i16(node, "volume", 127)?,
+        balance: child_i16(node, "balance", 64)?,
+        chorus: child_i16(node, "chorus", 0)?,
+        reverb: child_i16(node, "reverb", 0)?,
+        phaser: child_i16(node, "phaser", 0)?,
+        tremolo: child_i16(node, "tremolo", 0)?,
+        name: child_text(node, "name").unwrap_or("").to_string(),
+        ..Default::default()
+    };
 
     for param_node in node
         .children()
@@ -376,7 +378,7 @@ fn parse_measure_header(
             .filter(|n| n.is_element() && n.tag_name().name() == "alternative")
         {
             let alt_num = text_i32(alt_node)?;
-            if alt_num >= 1 && alt_num <= 32 {
+            if (1..=32).contains(&alt_num) {
                 bitmap |= 1 << (alt_num - 1);
             }
         }
@@ -577,10 +579,10 @@ fn parse_beat(node: Node<'_, '_>) -> Result<TgBeat, ReadError> {
     }
 
     // Text
-    if let Some(text_val) = child_text(node, "text") {
-        if !text_val.is_empty() {
-            beat.text = Some(text_val.to_string());
-        }
+    if let Some(text_val) = child_text(node, "text")
+        && !text_val.is_empty()
+    {
+        beat.text = Some(text_val.to_string());
     }
 
     // Voices
@@ -669,9 +671,10 @@ fn parse_voice(node: Node<'_, '_>) -> Result<TgVoice, ReadError> {
 // =============================================================================
 
 fn parse_duration(node: Node<'_, '_>) -> Result<TgDuration, ReadError> {
-    let mut dur = TgDuration::default();
-
-    dur.value = attr_i32(node, "value")?;
+    let mut dur = TgDuration {
+        value: attr_i32(node, "value")?,
+        ..Default::default()
+    };
 
     // Dotted attribute: "dotted" or "doubleDotted"
     if let Some(dotted_val) = attr(node, "dotted") {
@@ -697,27 +700,21 @@ fn parse_duration(node: Node<'_, '_>) -> Result<TgDuration, ReadError> {
 // =============================================================================
 
 fn parse_note(node: Node<'_, '_>, prev_velocity: i32) -> Result<TgNote, ReadError> {
-    let mut note = TgNote::default();
-
-    note.value = attr_i32(node, "value")?;
-    note.string = attr_i32(node, "string")?;
-
-    // Velocity: use attribute if present, otherwise inherit from previous note
-    note.velocity = match attr(node, "velocity") {
+    let velocity = match attr(node, "velocity") {
         Some(v) => v
             .parse::<i32>()
             .map_err(|_| ReadError::InvalidFormat(format!("Invalid velocity value: {v}")))?,
         None => prev_velocity,
     };
 
-    // Tied note
-    note.tied = attr(node, "tiedNote").map(|v| v == "true").unwrap_or(false);
-
-    // Parse note effects (child elements)
-    note.effect = parse_note_effects(node)?;
-
-    // Alternative enharmonic
-    note.alt_enharmonic = child_elem(node, "alternativeEnharmonic").is_some();
+    let note = TgNote {
+        value: attr_i32(node, "value")?,
+        string: attr_i32(node, "string")?,
+        velocity,
+        tied: attr(node, "tiedNote").map(|v| v == "true").unwrap_or(false),
+        effect: parse_note_effects(node)?,
+        alt_enharmonic: child_elem(node, "alternativeEnharmonic").is_some(),
+    };
 
     Ok(note)
 }
@@ -727,23 +724,23 @@ fn parse_note(node: Node<'_, '_>, prev_velocity: i32) -> Result<TgNote, ReadErro
 // =============================================================================
 
 fn parse_note_effects(node: Node<'_, '_>) -> Result<TgNoteEffect, ReadError> {
-    let mut effect = TgNoteEffect::default();
-
-    // Boolean flags (presence of empty element means true)
-    effect.vibrato = child_elem(node, "vibrato").is_some();
-    effect.dead_note = child_elem(node, "deadNote").is_some();
-    effect.slide = child_elem(node, "slide").is_some();
-    effect.hammer = child_elem(node, "hammer").is_some();
-    effect.ghost_note = child_elem(node, "ghostNote").is_some();
-    effect.accentuated = child_elem(node, "accentuatedNote").is_some();
-    effect.heavy_accentuated = child_elem(node, "heavyAccentuatedNote").is_some();
-    effect.palm_mute = child_elem(node, "palmMute").is_some();
-    effect.staccato = child_elem(node, "staccato").is_some();
-    effect.tapping = child_elem(node, "tapping").is_some();
-    effect.slapping = child_elem(node, "slapping").is_some();
-    effect.popping = child_elem(node, "popping").is_some();
-    effect.fade_in = child_elem(node, "fadeIn").is_some();
-    effect.let_ring = child_elem(node, "letRing").is_some();
+    let mut effect = TgNoteEffect {
+        vibrato: child_elem(node, "vibrato").is_some(),
+        dead_note: child_elem(node, "deadNote").is_some(),
+        slide: child_elem(node, "slide").is_some(),
+        hammer: child_elem(node, "hammer").is_some(),
+        ghost_note: child_elem(node, "ghostNote").is_some(),
+        accentuated: child_elem(node, "accentuatedNote").is_some(),
+        heavy_accentuated: child_elem(node, "heavyAccentuatedNote").is_some(),
+        palm_mute: child_elem(node, "palmMute").is_some(),
+        staccato: child_elem(node, "staccato").is_some(),
+        tapping: child_elem(node, "tapping").is_some(),
+        slapping: child_elem(node, "slapping").is_some(),
+        popping: child_elem(node, "popping").is_some(),
+        fade_in: child_elem(node, "fadeIn").is_some(),
+        let_ring: child_elem(node, "letRing").is_some(),
+        ..Default::default()
+    };
 
     // Bend
     if let Some(bend_node) = child_elem(node, "bend") {
