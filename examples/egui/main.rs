@@ -224,7 +224,7 @@ fn main() -> Result<(), eframe::Error> {
                 let mut end = pos.x;
                 let mut pitch_start = pos.y.with_cents(0.0);
                 let mut pitch_end = pos.y.with_cents(0.0);
-                let mut stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+                let mut stroke = egui::Stroke::new(1.0f32, egui::Color32::WHITE);
                 let mut fill = egui::Color32::TRANSPARENT;
 
                 if ui.input(|i| i.pointer.primary_down())
