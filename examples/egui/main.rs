@@ -1,279 +1,340 @@
+mod actions;
+
 use egui::Align2;
 use music_notation::note::Note;
-use music_notation::note::harmony::{Chroma, Interval, Pitch};
+use music_notation::note::harmony::{Chroma, Interval};
 use music_notation::note::rhythm::{Duration, Time};
 use music_notation::rendering::math2d::{Lerp, Rect, Vec2, vec2};
 use music_notation::score::Score;
 
-fn main() -> Result<(), eframe::Error> {
-    let mut score =
-        Score::from_midi_data(include_bytes!("../../Queen - Bohemian Rhapsody.mid")).unwrap();
-    let mut viewport = Rect::from_ranges(
-        score.time_range().unwrap_or_default(),
-        score.pitch_range().unwrap_or_default(),
-    );
+use crate::actions::{ActionMap, EditorState};
 
-    let mut last_drawn: Option<Rect<Time, Pitch>> = None;
-    let mut selections: Vec<Rect<Time, Pitch>> = Vec::new();
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Page {
+    Editor,
+    Shortcuts,
+}
+
+fn main() -> Result<(), eframe::Error> {
+    let mut action_map = ActionMap::default();
+    let score =
+        Score::from_midi_data(include_bytes!("../../Queen - Bohemian Rhapsody.mid")).unwrap();
+    let mut editor_state = EditorState {
+        viewport: Rect::from_ranges(
+            score.time_range().unwrap_or_default(),
+            score.pitch_range().unwrap_or_default(),
+        ),
+        score,
+        last_drawn: None,
+        selections: Vec::new(),
+    };
+
+    let mut current_page = Page::Editor;
 
     eframe::run_ui_native(
         "Editor",
         eframe::NativeOptions::default(),
         move |ui, _frame| {
-            ui.label("Hello, world!");
-
-            let (rect, response) = ui.allocate_at_least(ui.available_size(), egui::Sense::all());
-
-            // Handle interactions (before painting for latency!!)
-            // Zoom
-            let (zoomed, cursor_pos) = ui.input(|i| {
-                (
-                    i.zoom_delta(),
-                    i.pointer.hover_pos().unwrap_or(rect.center()),
-                )
+            // Tab bar
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut current_page, Page::Editor, "Editor");
+                ui.selectable_value(&mut current_page, Page::Shortcuts, "Shortcuts");
             });
-            viewport = viewport.zoom(
-                vec2(zoomed, 1.0),
-                Vec2::from_egui(cursor_pos.to_vec2()).remap(Rect::from_egui(rect), viewport),
-            );
-            // Drag/Move around
-            if response.dragged_by(egui::PointerButton::Middle) {
-                viewport -= viewport.size() * Vec2::from_egui(response.drag_delta() / rect.size());
-            }
+            ui.separator();
 
-            // Prepare paint: Calculate appropriate grid size
-            let grid_min_size = viewport.width() / 50;
-
-            let grid_size =
-                Duration::from_beats_f64(2.0f64.powf((grid_min_size.beats()).log2().floor() + 1.0));
-
-            // Place note
-            if let Some(last_drawn) = last_drawn
-                && ui.input(|i| i.pointer.primary_released())
-            {
-                let note = Note {
-                    time: last_drawn.left,
-                    duration: last_drawn.width(),
-                    pitch: last_drawn.top + (last_drawn.bottom - last_drawn.top) / 2.0,
-                    ..Default::default()
-                };
-
-                let mut place_note = true;
-                for part in score.parts.iter_mut() {
-                    part.notes.retain(|n| {
-                        if n.pitch != note.pitch {
-                            return true;
-                        }
-
-                        let exact_overlap = n.time == note.time && n.duration == note.duration;
-                        if exact_overlap {
-                            place_note = false;
-                        }
-
-                        n.time >= (note.time + note.duration) || n.time + n.duration <= note.time
-                    });
+            match current_page {
+                Page::Editor => {
+                    ui.label("Hello, world!");
+                    render_editor_page(ui, &mut editor_state);
                 }
-
-                if place_note {
-                    selections.clear();
-                    if ui.input(|i| i.modifiers.alt) {
-                        let start = note.time;
-                        let end = note.time + note.duration;
-
-                        for i in 0.. {
-                            let time = start + grid_size * i as i64;
-                            if time >= end {
-                                break;
-                            }
-
-                            let note = Note {
-                                time,
-                                duration: grid_size,
-                                ..note.clone()
-                            };
-
-                            selections.push(Rect {
-                                left:   note.time,
-                                top:    note.pitch - Interval::HALFSTEP * 0.5,
-                                right:  note.time + note.duration,
-                                bottom: note.pitch + Interval::HALFSTEP * 0.5,
-                            });
-                            score.parts[0].notes.push(note);
-                        }
-                    }
-                    else {
-                        selections.push(Rect {
-                            left:   note.time,
-                            top:    note.pitch - Interval::HALFSTEP * 0.5,
-                            right:  note.time + note.duration,
-                            bottom: note.pitch + Interval::HALFSTEP * 0.5,
-                        });
-                        score.parts[0].notes.push(note);
-                    }
+                Page::Shortcuts => {
+                    render_shortcuts_page(ui, &mut action_map);
                 }
-            }
-
-            // Handle selection
-            if let Some(last_drawn) = last_drawn
-                && ui.input(|i| i.pointer.secondary_released())
-            {
-                selections = score
-                    .parts
-                    .iter()
-                    .flat_map(|p| p.notes.iter())
-                    .filter(|n| {
-                        let n_left = n.time;
-                        let n_right = n.time + n.duration;
-                        let n_top = n.pitch - Interval::HALFSTEP * 0.5;
-                        let n_bottom = n.pitch + Interval::HALFSTEP * 0.5;
-
-                        n_left < last_drawn.right
-                            && n_right > last_drawn.left
-                            && n_top < last_drawn.bottom
-                            && n_bottom > last_drawn.top
-                    })
-                    .map(|n| {
-                        let start = n.time;
-                        let end = n.time + n.duration;
-
-                        Rect {
-                            left:   start,
-                            right:  end,
-                            top:    n.pitch - Interval::HALFSTEP * 0.5,
-                            bottom: n.pitch + Interval::HALFSTEP * 0.5,
-                        }
-                    })
-                    .collect();
-            }
-
-            // Paint grid (logarithmic with smooth transitions)
-            // Compute smooth fade factor: how close is the finest level to transitioning?
-            // lines_in_viewport ranges from ~25 (well-spaced) to ~50 (about to appear)
-            let lines_in_viewport = viewport.width() / grid_size;
-            let fade = (50.0 / lines_in_viewport.max(1) as f32 - 1.0).clamp(0.0, 1.0);
-            let num_levels = 4u32;
-
-            for i in 0.. {
-                let time = viewport.left.ceil(grid_size) + grid_size * i as i64;
-                if time > viewport.right {
-                    break;
-                }
-
-                // Compute depth: how many coarser levels this line aligns with
-                let offset = time - Time::ZERO;
-                let depth = (offset / grid_size).trailing_zeros().min(num_levels);
-
-                // Alpha smoothly interpolated: depth 0 (finest) is dimmest, higher = brighter
-                // fade makes the finest level smoothly appear/disappear during zoom transitions
-                let alpha =
-                    ((depth as f32 + fade) / (num_levels as f32) * 255.0).clamp(0.0, 255.0) as u8;
-
-                if alpha == 0 {
-                    continue;
-                }
-
-                let x = time.remap(viewport.x_range(), Rect::from_egui(rect).x_range());
-                let width = if offset % (Duration::WHOLE * 4) == Duration::ZERO {
-                    5.0
-                }
-                else {
-                    1.0
-                };
-                ui.painter().line_segment(
-                    [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
-                    (width, egui::Color32::from_white_alpha(alpha)),
-                );
-            }
-
-            // Paint notes
-            ui.set_clip_rect(rect);
-            for part in &score.parts {
-                for note in &part.notes {
-                    ui.painter().rect_filled(
-                        Rect {
-                            left:   note.time,
-                            right:  note.time + note.duration,
-                            top:    note.pitch - Interval::HALFSTEP * 0.5,
-                            bottom: note.pitch + Interval::HALFSTEP * 0.5,
-                        }
-                        .remap(viewport, Rect::from_egui(rect))
-                        .to_egui()
-                        .shrink(2.0),
-                        0.0,
-                        boomwhacker_color(note.pitch.chroma(), 255),
-                    );
-                }
-            }
-
-            // Paint selections
-            for selection in selections.iter() {
-                let selection = selection.remap(viewport, Rect::from_egui(rect)).to_egui();
-                ui.painter().rect_stroke(
-                    selection.shrink(1.0),
-                    0.0,
-                    (1.0, egui::Color32::WHITE),
-                    egui::StrokeKind::Outside,
-                );
-            }
-
-            // Paint highlighted note
-            if let Some(pointer) = ui.pointer_latest_pos() {
-                let pos = Vec2::from_egui(pointer.to_vec2()).remap(Rect::from_egui(rect), viewport);
-
-                let mut start = pos.x;
-                let mut end = pos.x;
-                let mut pitch_start = pos.y.with_cents(0.0);
-                let mut pitch_end = pos.y.with_cents(0.0);
-                let mut stroke = egui::Stroke::new(1.0f32, egui::Color32::WHITE);
-                let mut fill = egui::Color32::TRANSPARENT;
-
-                if ui.input(|i| i.pointer.primary_down())
-                    && let Some(drag_start) = ui.input(|i| i.pointer.press_origin())
-                {
-                    let drag_start = Vec2::from_egui(drag_start.to_vec2())
-                        .remap(Rect::from_egui(rect), viewport);
-                    end = drag_start.x;
-                    fill = boomwhacker_color(pitch_start.chroma(), 128);
-                    stroke = egui::Stroke::NONE;
-                }
-
-                if ui.input(|i| i.pointer.secondary_down())
-                    && let Some(drag_start) = ui.input(|i| i.pointer.press_origin())
-                {
-                    let drag_start = Vec2::from_egui(drag_start.to_vec2())
-                        .remap(Rect::from_egui(rect), viewport);
-                    end = drag_start.x;
-                    pitch_end = drag_start.y;
-                }
-
-                if start > end {
-                    std::mem::swap(&mut start, &mut end);
-                }
-                if pitch_start > pitch_end {
-                    std::mem::swap(&mut pitch_start, &mut pitch_end);
-                }
-
-                let note_rect = Rect {
-                    left:   start.floor(grid_size),
-                    right:  end.ceil(grid_size),
-                    top:    pitch_start - Interval::HALFSTEP * 0.5,
-                    bottom: pitch_end + Interval::HALFSTEP * 0.5,
-                };
-                last_drawn = Some(note_rect);
-
-                let note_rect = note_rect.remap(viewport, Rect::from_egui(rect)).to_egui();
-                ui.painter()
-                    .rect(note_rect, 0.0, fill, stroke, egui::StrokeKind::Outside);
-                ui.painter().text(
-                    note_rect.right_center(),
-                    Align2::LEFT_CENTER,
-                    duration_name(grid_size),
-                    egui::FontId::default(),
-                    egui::Color32::WHITE,
-                );
             }
         },
     )
+}
+
+fn render_editor_page(ui: &mut egui::Ui, state: &mut EditorState) {
+    let (rect, response) = ui.allocate_at_least(ui.available_size(), egui::Sense::all());
+
+    // Handle interactions (before painting for latency!!)
+    // Zoom
+    let (zoomed, cursor_pos) = ui.input(|i| {
+        (
+            i.zoom_delta(),
+            i.pointer.hover_pos().unwrap_or(rect.center()),
+        )
+    });
+    state.viewport = state.viewport.zoom(
+        vec2(zoomed, 1.0),
+        Vec2::from_egui(cursor_pos.to_vec2()).remap(Rect::from_egui(rect), state.viewport),
+    );
+    // Drag/Move around
+    if response.dragged_by(egui::PointerButton::Middle) {
+        state.viewport -=
+            state.viewport.size() * Vec2::from_egui(response.drag_delta() / rect.size());
+    }
+
+    // Prepare paint: Calculate appropriate grid size
+    let grid_min_size = state.viewport.width() / 50;
+
+    let grid_size =
+        Duration::from_beats_f64(2.0f64.powf((grid_min_size.beats()).log2().floor() + 1.0));
+
+    // Place note
+    if let Some(last_drawn_rect) = state.last_drawn
+        && ui.input(|i| i.pointer.primary_released())
+    {
+        let note = Note {
+            time: last_drawn_rect.left,
+            duration: last_drawn_rect.width(),
+            pitch: last_drawn_rect.top + (last_drawn_rect.bottom - last_drawn_rect.top) / 2.0,
+            ..Default::default()
+        };
+
+        let mut place_note = true;
+        for part in state.score.parts.iter_mut() {
+            part.notes.retain(|n| {
+                if n.pitch != note.pitch {
+                    return true;
+                }
+
+                let exact_overlap = n.time == note.time && n.duration == note.duration;
+                if exact_overlap {
+                    place_note = false;
+                }
+
+                n.time >= (note.time + note.duration) || n.time + n.duration <= note.time
+            });
+        }
+
+        if place_note {
+            state.selections.clear();
+            if ui.input(|i| i.modifiers.alt) {
+                let start = note.time;
+                let end = note.time + note.duration;
+
+                for i in 0.. {
+                    let time = start + grid_size * i as i64;
+                    if time >= end {
+                        break;
+                    }
+
+                    let note = Note {
+                        time,
+                        duration: grid_size,
+                        ..note.clone()
+                    };
+
+                    state.selections.push(Rect {
+                        left:   note.time,
+                        top:    note.pitch - Interval::HALFSTEP * 0.5,
+                        right:  note.time + note.duration,
+                        bottom: note.pitch + Interval::HALFSTEP * 0.5,
+                    });
+                    state.score.parts[0].notes.push(note);
+                }
+            }
+            else {
+                state.selections.push(Rect {
+                    left:   note.time,
+                    top:    note.pitch - Interval::HALFSTEP * 0.5,
+                    right:  note.time + note.duration,
+                    bottom: note.pitch + Interval::HALFSTEP * 0.5,
+                });
+                state.score.parts[0].notes.push(note);
+            }
+        }
+    }
+
+    // Handle selection
+    if let Some(last_drawn_rect) = state.last_drawn
+        && ui.input(|i| i.pointer.secondary_released())
+    {
+        state.selections = state
+            .score
+            .parts
+            .iter()
+            .flat_map(|p| p.notes.iter())
+            .filter(|n| {
+                let n_left = n.time;
+                let n_right = n.time + n.duration;
+                let n_top = n.pitch - Interval::HALFSTEP * 0.5;
+                let n_bottom = n.pitch + Interval::HALFSTEP * 0.5;
+
+                n_left < last_drawn_rect.right
+                    && n_right > last_drawn_rect.left
+                    && n_top < last_drawn_rect.bottom
+                    && n_bottom > last_drawn_rect.top
+            })
+            .map(|n| {
+                let start = n.time;
+                let end = n.time + n.duration;
+
+                Rect {
+                    left:   start,
+                    right:  end,
+                    top:    n.pitch - Interval::HALFSTEP * 0.5,
+                    bottom: n.pitch + Interval::HALFSTEP * 0.5,
+                }
+            })
+            .collect();
+    }
+
+    // Paint grid (logarithmic with smooth transitions)
+    // Compute smooth fade factor: how close is the finest level to transitioning?
+    // lines_in_viewport ranges from ~25 (well-spaced) to ~50 (about to appear)
+    let lines_in_viewport = state.viewport.width() / grid_size;
+    let fade = (50.0f32 / lines_in_viewport.max(1) as f32 - 1.0f32).clamp(0.0, 1.0);
+    let num_levels = 4u32;
+
+    for i in 0.. {
+        let time = state.viewport.left.ceil(grid_size) + grid_size * i as i64;
+        if time > state.viewport.right {
+            break;
+        }
+
+        // Compute depth: how many coarser levels this line aligns with
+        let offset = time - Time::ZERO;
+        let depth = (offset / grid_size).trailing_zeros().min(num_levels);
+
+        // Alpha smoothly interpolated: depth 0 (finest) is dimmest, higher = brighter
+        // fade makes the finest level smoothly appear/disappear during zoom transitions
+        let alpha = ((depth as f32 + fade) / (num_levels as f32) * 255.0).clamp(0.0, 255.0) as u8;
+
+        if alpha == 0 {
+            continue;
+        }
+
+        let x = time.remap(state.viewport.x_range(), Rect::from_egui(rect).x_range());
+        let width = if offset % (Duration::WHOLE * 4) == Duration::ZERO {
+            5.0
+        }
+        else {
+            1.0
+        };
+        ui.painter().line_segment(
+            [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
+            (width, egui::Color32::from_white_alpha(alpha)),
+        );
+    }
+
+    // Paint notes
+    ui.set_clip_rect(rect);
+    for part in &state.score.parts {
+        for note in &part.notes {
+            ui.painter().rect_filled(
+                Rect {
+                    left:   note.time,
+                    right:  note.time + note.duration,
+                    top:    note.pitch - Interval::HALFSTEP * 0.5,
+                    bottom: note.pitch + Interval::HALFSTEP * 0.5,
+                }
+                .remap(state.viewport, Rect::from_egui(rect))
+                .to_egui()
+                .shrink(2.0),
+                0.0,
+                boomwhacker_color(note.pitch.chroma(), 255),
+            );
+        }
+    }
+
+    // Paint selections
+    for selection in state.selections.iter() {
+        let selection = selection
+            .remap(state.viewport, Rect::from_egui(rect))
+            .to_egui();
+        ui.painter().rect_stroke(
+            selection.shrink(1.0),
+            0.0,
+            (1.0, egui::Color32::WHITE),
+            egui::StrokeKind::Outside,
+        );
+    }
+
+    // Paint highlighted note
+    if let Some(pointer) = ui.pointer_latest_pos() {
+        let pos = Vec2::from_egui(pointer.to_vec2()).remap(Rect::from_egui(rect), state.viewport);
+
+        let mut start = pos.x;
+        let mut end = pos.x;
+        let mut pitch_start = pos.y.with_cents(0.0);
+        let mut pitch_end = pos.y.with_cents(0.0);
+        let mut stroke = egui::Stroke::new(1.0f32, egui::Color32::WHITE);
+        let mut fill = egui::Color32::TRANSPARENT;
+
+        if ui.input(|i| i.pointer.primary_down())
+            && let Some(drag_start) = ui.input(|i| i.pointer.press_origin())
+        {
+            let drag_start =
+                Vec2::from_egui(drag_start.to_vec2()).remap(Rect::from_egui(rect), state.viewport);
+            end = drag_start.x;
+            fill = boomwhacker_color(pitch_start.chroma(), 128);
+            stroke = egui::Stroke::NONE;
+        }
+
+        if ui.input(|i| i.pointer.secondary_down())
+            && let Some(drag_start) = ui.input(|i| i.pointer.press_origin())
+        {
+            let drag_start =
+                Vec2::from_egui(drag_start.to_vec2()).remap(Rect::from_egui(rect), state.viewport);
+            end = drag_start.x;
+            pitch_end = drag_start.y;
+        }
+
+        if start > end {
+            std::mem::swap(&mut start, &mut end);
+        }
+        if pitch_start > pitch_end {
+            std::mem::swap(&mut pitch_start, &mut pitch_end);
+        }
+
+        let note_rect = Rect {
+            left:   start.floor(grid_size),
+            right:  end.ceil(grid_size),
+            top:    pitch_start - Interval::HALFSTEP * 0.5,
+            bottom: pitch_end + Interval::HALFSTEP * 0.5,
+        };
+        state.last_drawn = Some(note_rect);
+
+        let note_rect = note_rect
+            .remap(state.viewport, Rect::from_egui(rect))
+            .to_egui();
+        ui.painter()
+            .rect(note_rect, 0.0, fill, stroke, egui::StrokeKind::Outside);
+        ui.painter().text(
+            note_rect.right_center(),
+            Align2::LEFT_CENTER,
+            duration_name(grid_size),
+            egui::FontId::default(),
+            egui::Color32::WHITE,
+        );
+    }
+}
+
+fn render_shortcuts_page(ui: &mut egui::Ui, action_map: &mut ActionMap) {
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        egui::Grid::new("shortcuts_grid")
+            .striped(true)
+            .show(ui, |ui| {
+                // Header
+                ui.strong("ID");
+                ui.strong("Name");
+                ui.strong("Trigger");
+                ui.strong("Description");
+                ui.end_row();
+
+                // Rows
+                for action in &mut action_map.entries {
+                    ui.label(&action.id);
+                    ui.label(&action.name);
+                    ui.text_edit_singleline(&mut action.trigger.raw);
+                    ui.label(&action.description);
+                    ui.end_row();
+                }
+            });
+    });
 }
 
 fn duration_name(duration: Duration) -> String {

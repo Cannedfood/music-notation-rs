@@ -18,6 +18,7 @@ tuxguitar = { path = "tuxguitar", optional = true }
 eframe = "0.34.2"
 egui = "0.34.2"
 cpal = "0.17.3"
+better_default = "1.0.5"
 
 [features]
 default = ["midly", "serde", "tuxguitar"]
