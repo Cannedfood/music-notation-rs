@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use crate::EditorState;
 pub use crate::action_trigger::{ActionTrigger, trigger};
 
@@ -8,6 +6,7 @@ pub struct Action {
     pub name: String,
     pub description: String,
     pub trigger: ActionTrigger,
+    #[expect(clippy::type_complexity)]
     pub update: Option<Box<dyn Fn(&mut EditorState)>>,
 }
 impl Action {
