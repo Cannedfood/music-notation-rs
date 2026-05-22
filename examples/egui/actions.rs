@@ -5,6 +5,8 @@ use music_notation::note::rhythm::Time;
 use music_notation::rendering::math2d::Rect;
 use music_notation::score::Score;
 
+pub use crate::action_trigger::{ActionTrigger, trigger};
+
 pub struct EditorState {
     pub viewport: Rect<Time, Pitch>,
     pub score: Score,
@@ -19,12 +21,6 @@ pub struct Action {
     pub category: BTreeSet<String>,
     pub trigger: ActionTrigger,
 }
-
-pub struct ActionTrigger {
-    pub raw: String,
-}
-
-pub fn trigger(s: &str) -> ActionTrigger { ActionTrigger { raw: s.to_string() } }
 
 pub struct ActionMap {
     pub entries: Vec<Action>,
@@ -149,7 +145,21 @@ impl Default for ActionMap {
                     category: BTreeSet::from(["selection".into(), "keyboard".into()]),
                     trigger: trigger("down+shift"),
                 },
+                Action {
+                    id: "selection.clear".into(),
+                    name: "Clear Selection".into(),
+                    description: "Clear the current selection".into(),
+                    category: BTreeSet::from(["selection".into(), "keyboard".into()]),
+                    trigger: trigger("escape"),
+                },
                 // ── Editing: Mouse ────────────────────────────────────────
+                Action {
+                    id: "edit.add_note".into(),
+                    name: "Add Note at Cursor".into(),
+                    description: "Add a note at the cursor position".into(),
+                    category: BTreeSet::from(["editing".into(), "mouse".into()]),
+                    trigger: trigger("a"),
+                },
                 Action {
                     id: "edit.drag_note".into(),
                     name: "Drag Note".into(),
@@ -255,6 +265,13 @@ impl Default for ActionMap {
                     description: "Lengthen the note from the right".into(),
                     category: BTreeSet::from(["editing".into(), "keyboard".into()]),
                     trigger: trigger("right+ctrl+shift"),
+                },
+                Action {
+                    id: "edit.delete".into(),
+                    name: "Delete Selection".into(),
+                    description: "Delete the selected notes".into(),
+                    category: BTreeSet::from(["editing".into(), "keyboard".into()]),
+                    trigger: trigger("delete; backspace; d"),
                 },
             ],
         }

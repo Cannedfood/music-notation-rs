@@ -1,3 +1,4 @@
+mod action_trigger;
 mod actions;
 
 use egui::Align2;
@@ -30,6 +31,7 @@ fn main() -> Result<(), eframe::Error> {
     };
 
     let mut current_page = Page::Editor;
+    let mut shortcuts_search = String::new();
 
     eframe::run_ui_native(
         "Editor",
@@ -48,7 +50,7 @@ fn main() -> Result<(), eframe::Error> {
                     render_editor_page(ui, &mut editor_state);
                 }
                 Page::Shortcuts => {
-                    render_shortcuts_page(ui, &mut action_map);
+                    render_shortcuts_page(ui, &mut action_map, &mut shortcuts_search);
                 }
             }
         },
@@ -313,7 +315,18 @@ fn render_editor_page(ui: &mut egui::Ui, state: &mut EditorState) {
     }
 }
 
-fn render_shortcuts_page(ui: &mut egui::Ui, action_map: &mut ActionMap) {
+fn render_shortcuts_page(ui: &mut egui::Ui, action_map: &mut ActionMap, search_query: &mut String) {
+    ui.horizontal(|ui| {
+        ui.label("Search:");
+        ui.text_edit_singleline(search_query);
+        if !search_query.is_empty() && ui.button("×").clicked() {
+            search_query.clear();
+        }
+    });
+    ui.separator();
+
+    let query = search_query.to_lowercase();
+
     egui::ScrollArea::vertical().show(ui, |ui| {
         egui::Grid::new("shortcuts_grid")
             .striped(true)
@@ -327,11 +340,26 @@ fn render_shortcuts_page(ui: &mut egui::Ui, action_map: &mut ActionMap) {
 
                 // Rows
                 for action in &mut action_map.entries {
-                    ui.label(&action.id);
-                    ui.label(&action.name);
-                    ui.text_edit_singleline(&mut action.trigger.raw);
-                    ui.label(&action.description);
-                    ui.end_row();
+                    let matches = query.is_empty()
+                        || action.id.to_lowercase().contains(&query)
+                        || action.name.to_lowercase().contains(&query)
+                        || action.description.to_lowercase().contains(&query)
+                        || action.trigger.to_string().to_lowercase().contains(&query)
+                        || action
+                            .category
+                            .iter()
+                            .any(|c| c.to_lowercase().contains(&query));
+
+                    if matches {
+                        ui.label(&action.id);
+                        ui.label(&action.name);
+                        let mut trigger_text = action.trigger.to_string();
+                        if ui.text_edit_singleline(&mut trigger_text).changed() {
+                            action.trigger = trigger_text.parse().unwrap_or(action.trigger.clone());
+                        }
+                        ui.label(&action.description);
+                        ui.end_row();
+                    }
                 }
             });
     });
