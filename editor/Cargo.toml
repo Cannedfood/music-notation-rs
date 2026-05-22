@@ -1,0 +1,11 @@
+[package]
+name = "editor"
+version = "0.1.0"
+edition = "2024"
+description = "egui-based editor for music-notation"
+license = "MIT"
+
+[dependencies]
+music-notation = { path = ".." }
+eframe = "0.34.2"
+egui = "0.34.2"
