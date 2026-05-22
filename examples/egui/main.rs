@@ -3,17 +3,24 @@ mod actions;
 
 use egui::Align2;
 use music_notation::note::Note;
-use music_notation::note::harmony::{Chroma, Interval};
+use music_notation::note::harmony::{Chroma, Interval, Pitch};
 use music_notation::note::rhythm::{Duration, Time};
 use music_notation::rendering::math2d::{Lerp, Rect, Vec2, vec2};
 use music_notation::score::Score;
 
-use crate::actions::{ActionMap, EditorState};
+use crate::actions::ActionMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Page {
     Editor,
     Shortcuts,
+}
+
+pub struct EditorState {
+    pub viewport: Rect<Time, Pitch>,
+    pub score: Score,
+    pub last_drawn: Option<Rect<Time, Pitch>>,
+    pub selections: Vec<Rect<Time, Pitch>>,
 }
 
 fn main() -> Result<(), eframe::Error> {
@@ -344,11 +351,7 @@ fn render_shortcuts_page(ui: &mut egui::Ui, action_map: &mut ActionMap, search_q
                         || action.id.to_lowercase().contains(&query)
                         || action.name.to_lowercase().contains(&query)
                         || action.description.to_lowercase().contains(&query)
-                        || action.trigger.to_string().to_lowercase().contains(&query)
-                        || action
-                            .category
-                            .iter()
-                            .any(|c| c.to_lowercase().contains(&query));
+                        || action.trigger.to_string().to_lowercase().contains(&query);
 
                     if matches {
                         ui.label(&action.id);
